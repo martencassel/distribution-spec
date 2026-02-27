@@ -232,40 +232,101 @@ A successful response **must** include:
 - Content negotiation rules follow RFC 7231.
 
 
-##### Pulling blobs
+### Pulling blobs
 
-To pull a blob, perform a `GET` request to a URL in the following form:
-`/v2/<name>/blobs/<digest>` <sup>[end-2](#endpoints)</sup>
+Retrieving a blob is done with a `GET` request:
 
-`<name>` is the namespace of the repository, and `<digest>` is the blob's digest.
+```
+GET /v2/<name>/blobs/<digest>
+```
 
-A GET request to an existing blob URL MUST provide the expected blob, with a response code that MUST be `200 OK`.
-A successful response MUST contain the digest of the uploaded blob in the header `Docker-Content-Digest`.
-If present, the value of this header MUST be a digest matching that of the response body.
-Most clients MAY ignore the value, but if it is used, the client MUST verify the value matches the returned response body.
-Clients SHOULD verify that the response body matches the requested digest.
+---
 
-If the blob is not found in the repository, the response code MUST be `404 Not Found`.
+#### Path parameters
 
-A registry SHOULD support the `Range` request header in accordance with [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#name-range-requests).
+- **`<name>`** is the repository namespace.
+- **`<digest>`** is the blob’s content digest.
 
-##### Checking if content exists in the registry
+Both values must follow the same rules used throughout the specification.
 
-In order to verify that a repository contains a given manifest or blob, make a `HEAD` request to a URL in the following form:
+---
 
-`/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup> (for manifests), or
+#### Successful response
 
-`/v2/<name>/blobs/<digest>` <sup>[end-2](#endpoints)</sup> (for blobs).
+A request for an existing blob **must** return:
 
-A HEAD request to an existing blob or manifest URL MUST return `200 OK`.
-A successful response MUST contain the digest of the uploaded blob or manifest in the header `Docker-Content-Digest`.
-A successful response MUST contain the size in bytes of the uploaded blob or manifest in the header `Content-Length`.
+- **200 OK**
+- **Body:** the blob’s raw bytes
+- **Headers:**
+  - `Docker-Content-Digest: <digest>`
 
-_Implementers note:_
-Clients may encounter registries implementing earlier spec versions which did not require the `Docker-Content-Digest` header.
-In such cases, the clients can reasonably assume the digest algorithm used is sha256.
+The value of `Docker-Content-Digest`:
 
-If the blob or manifest is not found in the repository, the response code MUST be `404 Not Found`.
+- **must** be a valid digest
+- **must** match the digest of the returned blob
+- may be ignored by clients, but if a client uses it, the client **must** verify it matches the response body
+- should be validated by clients against the requested digest
+
+---
+
+#### Error response
+
+If the blob does not exist in the repository, the registry **must** return:
+
+- **404 Not Found**
+
+---
+
+### Range request support
+
+Registries **should** support the HTTP `Range:` request header as defined in **RFC 9110**. Supporting range requests allows clients to:
+
+- resume interrupted blob downloads
+- fetch specific byte ranges
+- avoid re-downloading already retrieved data
+
+This behavior is optional but strongly recommended for efficient and resilient blob transfers.
+
+---
+
+### Checking if content exists (HEAD requests)
+
+Clients can verify whether a manifest or blob exists in a repository without downloading the content by issuing a `HEAD` request.
+
+#### Endpoints
+
+- Manifest existence check:
+  ```
+  HEAD /v2/<name>/manifests/<reference>
+  ```
+- Blob existence check:
+  ```
+  HEAD /v2/<name>/blobs/<digest>
+  ```
+
+#### Successful response
+
+If the manifest or blob exists, the registry **must** return:
+
+- **200 OK**
+- **Headers:**
+  - `Docker-Content-Digest: <digest>`
+    - The digest of the manifest or blob.
+  - `Content-Length: <size in bytes>`
+    - The exact size of the stored object.
+
+A `HEAD` response **must not** include a response body.
+
+#### Compatibility note
+
+Some older registries may omit the `Docker-Content-Digest` header.
+In these cases, clients may reasonably assume the digest algorithm is **sha256**.
+
+#### Error response
+
+If the manifest or blob does not exist, the registry **must** return:
+
+- **404 Not Found**
 
 #### Push
 
