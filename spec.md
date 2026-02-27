@@ -140,9 +140,13 @@ In order to test a registry's conformance against these workflow categories, ple
 
 #### Pull
 
-The process of pulling an object centers around retrieving two components: the manifest and one or more blobs.
+Pulling an object from a registry involves two types of content:
 
-Typically, the first step in pulling an object is to retrieve the manifest. However, you MAY retrieve content from the registry in any order.
+The manifest, which describes the object.
+
+One or more blobs, which contain the actual data referenced by the manifest.
+
+Most clients begin by requesting the manifest so they know which blobs to fetch. However, the specification does not require this order. Clients may retrieve the manifest and blobs in any sequence, and registries must support this flexibility.
 
 ##### Pulling manifests
 
