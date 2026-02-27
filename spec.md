@@ -150,43 +150,87 @@ Most clients begin by requesting the manifest so they know which blobs to fetch.
 
 ##### Pulling manifests
 
-To pull a manifest, perform a `GET` request to a URL in the following form:
-`/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup>
+Retrieving a manifest is done with a `GET` request:
 
-`<name>` refers to the namespace of the repository.
-`<reference>` MUST be either (a) the digest of the manifest or (b) a tag.
-The `<reference>` MUST NOT be in any other format.
-Throughout this document, `<name>` MUST match the following regular expression:
+```
+GET /v2/<name>/manifests/<reference>
+```
 
-`[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*(\/[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*)*`
+---
 
-_Implementers note:_
-Many clients impose a limit of 255 characters on the length of the concatenation of the registry hostname (and optional port), `/`, and `<name>` value.
-If the registry name is `registry.example.org:5000`, those clients would be limited to a `<name>` of 229 characters (255 minus 25 for the registry hostname and port and minus 1 for a `/` separator).
-For compatibility with those clients, registries should avoid values of `<name>` that would cause this limit to be exceeded.
+#### Repository name (`<name>`)
 
-Throughout this document, `<reference>` as a tag MUST be at most 128 characters in length and MUST match the following regular expression:
+`<name>` identifies the repository namespace. It **must** match:
 
-`[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}`
+```
+[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*(\/[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*)*
+```
 
-The client SHOULD include an `Accept` header indicating which manifest content types it supports.
-In a successful response, the `Content-Type` header will indicate the type of the returned manifest.
-The registry SHOULD NOT include parameters on the `Content-Type` header.
-The client SHOULD ignore parameters on the `Content-Type` header.
-The `Content-Type` header SHOULD match what the client [pushed as the manifest's `Content-Type`](#pushing-manifests).
-If the manifest has a `mediaType` field, clients SHOULD reject unless the `mediaType` field's value matches the type specified by the `Content-Type` header.
-For more information on the use of `Accept` headers and content negotiation, please see [Content Negotiation](./content-negotiation.md) and [RFC7231](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1).
+**Implementer note:**
+Many clients limit the total length of `hostname[:port]/<name>` to **255 characters**.
+For example, with `registry.example.org:5000`, the maximum `<name>` is **229 characters**.
+Registries should avoid repository names that exceed this practical limit.
 
-A GET request to an existing manifest URL MUST provide the expected manifest, with a response code that MUST be `200 OK`.
-A successful response MUST contain the digest of the uploaded blob in the header `Docker-Content-Digest`.
+---
 
-The `Docker-Content-Digest` header, if present on the response, returns the digest of the uploaded blob which MAY differ from the provided digest.
-If the digest does differ, it MAY be the case that the hashing algorithms used do not match.
-See [Content Digests](https://github.com/opencontainers/image-spec/blob/v1.0.1/descriptor.md#digests) <sup>[apdx-3](#appendix)</sup> for information on how to detect the hashing algorithm in use.
-Most clients MAY ignore the value, but if it is used, the client MUST verify the value matches the returned manifest.
-If the `<reference>` part of a manifest request is a digest, clients SHOULD verify the returned manifest matches this digest.
+#### Manifest reference (`<reference>`)
 
-If the manifest is not found in the repository, the response code MUST be `404 Not Found`.
+`<reference>` must be one of:
+
+- a **digest**, or
+- a **tag** matching:
+
+  ```
+  [a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}
+  ```
+
+No other formats are allowed.
+
+---
+
+#### Request headers
+
+Clients **should** send an `Accept:` header listing the manifest media types they support.
+
+---
+
+#### Response headers
+
+A successful response **must** include:
+
+- `Content-Type: <manifest media type>`
+  - Registries should not include parameters.
+  - Clients should ignore parameters.
+  - The value should match the `Content-Type` used when the manifest was pushed.
+  - If the manifest contains a `mediaType` field, clients should reject the response unless it matches the `Content-Type` header.
+
+- `Docker-Content-Digest: <digest>`
+  - This is the digest of the returned manifest.
+  - It may differ from the digest in the request if different hashing algorithms were used.
+  - Clients may ignore this header, but if they use it, they **must** verify it matches the returned manifest.
+  - If `<reference>` is a digest, clients **should** verify that the returned manifest matches that digest.
+
+---
+
+#### Successful response
+
+- **200 OK**
+- Body: the manifest, byte-for-byte as stored.
+
+---
+
+#### Error response
+
+- **404 Not Found** if the manifest does not exist.
+
+---
+
+#### Additional notes
+
+- Digest differences may occur due to different hashing algorithms.
+  See the OCI Image Spec’s *Content Digests* section for algorithm detection.
+- Content negotiation rules follow RFC 7231.
+
 
 ##### Pulling blobs
 
