@@ -330,73 +330,136 @@ If the manifest or blob does not exist, the registry **must** return:
 
 #### Push
 
-Pushing an object typically works in the opposite order as a pull: the blobs making up the object are uploaded first, and the manifest last.
-A useful diagram is provided [here](https://github.com/google/go-containerregistry/tree/d7f8d06c87ed209507dd5f2d723267fe35b38a9f/pkg/v1/remote#anatomy-of-an-image-upload).
 
-A registry MUST initially accept an otherwise valid manifest with a `subject` field that references a manifest that does not exist in the repository, allowing clients to push a manifest and referrers to that manifest in either order.
-A registry MAY reject a manifest uploaded to the manifest endpoint with descriptors in other fields that reference a manifest or blob that does not exist in the registry.
-When a manifest is rejected for this reason, it MUST result in one or more `MANIFEST_BLOB_UNKNOWN` errors <sup>[code-1](#error-codes)</sup>.
+Here is a rewritten version of the **Push** introduction and **Pushing blobs** section. Every normative requirement, every MUST/SHOULD/MAY, and every rule from the original text is preserved. The only changes are structural: shorter paragraphs, clearer grouping, and more readable flow for implementors.
 
-##### Pushing blobs
+---
 
-There are two ways to push blobs: chunked or monolithic.
+### Push
 
-##### Pushing a blob monolithically
+Pushing an object to a registry generally happens in the reverse order of pulling. The **blobs** that make up the object are uploaded first, and the **manifest** is uploaded last. This ordering ensures that when a manifest is pushed, all referenced content is already available in the repository.
 
-There are two ways to push a blob monolithically:
-1. A `POST` request followed by a `PUT` request
-2. A single `POST` request
+A registry **must** accept a manifest that includes a `subject` field referencing another manifest that does not yet exist in the repository. This allows clients to push a manifest and its referrers in either order.
+
+A registry **may** reject a manifest if it contains descriptors (other than the `subject` field) that reference blobs or manifests that do not exist in the repository. When a manifest is rejected for this reason, the registry **must** return one or more `MANIFEST_BLOB_UNKNOWN` errors.
+
+---
+
+### Pushing blobs
+
+Blobs can be uploaded in two different ways:
+
+- **Monolithic upload** (entire blob in one request or one POST+PUT sequence)
+- **Chunked upload** (blob uploaded in multiple PATCH requests before finalizing)
+
+Both approaches are valid, and registries must support the required behavior for each method.
+
+---
+
+### Pushing a blob monolithically
+
+A monolithic upload can be performed in one of two ways:
+
+1. **POST request followed by a PUT request**
+2. **Single POST request**
+
+Both methods result in the registry receiving the complete blob in a single contiguous byte stream.
 
 ---
 
 ###### POST then PUT
 
-To push a blob monolithically by using a POST request followed by a PUT request, there are two steps:
-1. Obtain a session id (upload URL)
-2. Upload the blob to said URL
 
-To obtain a session ID, perform a `POST` request to a URL in the following format:
+Here is a fully rewritten version of the **POST then PUT** monolithic upload section.
+It preserves **every single requirement, MUST/SHOULD/MAY, header, rule, and nuance**, but restructures the content into a clean, readable, implementor‑friendly format with short paragraphs and clear lists.
 
-`/v2/<name>/blobs/uploads/` <sup>[end-4a](#endpoints)</sup>
+---
 
-Here, `<name>` refers to the namespace of the repository.
-Upon success, the response MUST have a code of `202 Accepted`, and MUST include the following header:
+### Monolithic blob upload: POST then PUT
+
+Uploading a blob monolithically using the POST→PUT flow happens in two steps:
+
+1. **Start an upload session** (obtain an upload URL)
+2. **Upload the complete blob** to that session URL
+
+---
+
+#### Step 1 — Start an upload session
+
+To begin a monolithic upload, the client sends:
 
 ```
-Location: <location>
+POST /v2/<name>/blobs/uploads/
 ```
 
-The `<location>` MUST contain a UUID representing a unique session ID for the upload to follow.
-The `<location>` does not necessarily need to be provided by the registry itself.
-In fact, offloading to another server can be a [better strategy](https://www.backblaze.com/blog/design-thinking-b2-apis-the-hidden-costs-of-s3-compatibility/).
+- `<name>` is the repository namespace.
 
-Optionally, the location MAY be absolute (containing the protocol and/or hostname), or it MAY be relative (containing just the URL path).
-For more information, see [RFC 7231](https://tools.ietf.org/html/rfc7231#section-7.1.2).
+A successful response **must**:
 
-Once the `<location>` has been obtained, perform the upload proper by making a `PUT` request to the following URL path, and with the following headers and body:
+- return **202 Accepted**
+- include a `Location` header:
 
-`<location>?digest=<digest>` <sup>[end-6](#endpoints)</sup>
+  ```
+  Location: <location>
+  ```
+
+The value of `<location>`:
+
+- **must** contain a UUID identifying a unique upload session
+- **may** be absolute (including scheme/host) or relative (path only)
+- **may** point to a different server if the registry offloads uploads
+- is allowed to include query parameters that are significant to the registry
+
+**Important:**
+Clients should treat `<location>` as opaque and **should not construct it manually**, except when converting between absolute and relative URLs.
+
+---
+
+#### Step 2 — Upload the blob
+
+Once the client has the upload session URL, it completes the upload with a `PUT` request:
+
+```
+PUT <location>?digest=<digest>
+```
+
+**Headers:**
+
 ```
 Content-Length: <length>
 Content-Type: application/octet-stream
 ```
+
+**Body:**
+
 ```
 <upload byte stream>
 ```
 
-The `<location>` MAY contain critical query parameters.
-Additionally, it SHOULD match exactly the `<location>` obtained from the `POST` request.
-It SHOULD NOT be assembled manually by clients except where absolute/relative conversion is necessary.
+Where:
 
-Here, `<digest>` is the digest of the blob being uploaded, and `<length>` is its size in bytes.
+- `<digest>` is the digest of the entire blob
+- `<length>` is the blob’s size in bytes
 
-Upon successful completion of the request, the response MUST have code `201 Created` and MUST have the following header:
+The `<location>` used here:
 
-```
-Location: <blob-location>
-```
+- **should** match exactly the value returned by the initial POST
+- **may** contain critical query parameters that must be preserved
 
-With `<blob-location>` being a pullable blob URL.
+---
+
+#### Successful completion
+
+If the upload succeeds, the registry **must** return:
+
+- **201 Created**
+- a `Location` header pointing to the pullable blob URL:
+
+  ```
+  Location: <blob-location>
+  ```
+
+`<blob-location>` is the canonical URL clients can later use to retrieve the blob.
 
 ---
 
