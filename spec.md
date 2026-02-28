@@ -631,20 +631,32 @@ The registry MAY treat the `from` parameter as optional, and it MAY cross-mount 
 Alternatively, if a registry does not support cross-repository mounting or is unable to mount the requested blob, it SHOULD return a `202`.
 This indicates that the upload session has begun and that the client MAY proceed with the upload.
 
-##### Pushing Manifests
+---
 
-To push a manifest, perform a `PUT` request to a path in the following format, and with the following headers and body: `/v2/<name>/manifests/<reference>` <sup>[end-7](#endpoints)</sup>
+### Pushing Manifests
 
-Clients SHOULD set the `Content-Type` header to the type of the manifest being pushed.
-The client SHOULD NOT include parameters on the `Content-Type` header (see [RFC7231](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1)).
-The registry SHOULD ignore parameters on the `Content-Type` header.
-All manifests SHOULD include a `mediaType` field declaring the type of the manifest being pushed.
-If a manifest includes a `mediaType` field, clients MUST set the `Content-Type` header to the value specified by the `mediaType` field.
+To push a manifest, the client performs a `PUT` request to:
+
+```
+/v2/<name>/manifests/<reference>
+```
+
+The request body contains the manifest, and the headers must follow these rules:
+
+- Clients **SHOULD** set `Content-Type` to the manifest’s media type.
+- Clients **SHOULD NOT** include parameters on the `Content-Type` header (per [RFC7231](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1)).
+- Registries **SHOULD** ignore any parameters if they are present.
+- All manifests **SHOULD** include a `mediaType` field describing the manifest type.
+- If a manifest includes a `mediaType` field, clients **MUST** set `Content-Type` to exactly that value.
+
+Example:
 
 ```
 Content-Type: application/vnd.oci.image.manifest.v1+json
 ```
-Manifest byte stream:
+
+Manifest body:
+
 ```
 {
   "mediaType": "application/vnd.oci.image.manifest.v1+json",
@@ -652,57 +664,77 @@ Manifest byte stream:
 }
 ```
 
-`<name>` is the namespace of the repository, and the `<reference>` MUST be either a) a digest or b) a tag.
+The `<name>` component identifies the repository namespace. The `<reference>` **MUST** be either a tag or a digest.
 
-The uploaded manifest MUST reference any blobs that make up the object.
-However, the list of blobs MAY be empty.
+The manifest **MUST** reference all blobs that make up the object, though the list of blobs **MAY** be empty.
 
-The registry MUST store the manifest in the exact byte representation provided by the client.
-Upon a successful upload, the registry MUST return response code `201 Created`, and MUST have the following header:
+The registry **MUST** store the manifest exactly as provided, without modification of its byte representation.
+
+Upon successful upload:
+
+- The registry **MUST** return `201 Created`.
+- The response **MUST** include:
+
+  ```
+  Location: <location>
+  ```
+
+  where `<location>` is a pullable URL for the manifest.
+
+- The `Docker-Content-Digest` header **MUST** contain the digest of the uploaded manifest and **MUST** match the digest provided by the client.
+  Clients **MAY** ignore this value, but if they use it, they **SHOULD** verify it against the uploaded bytes.
+
+Pulling a repository that does not exist **MUST** return `404 Not Found`.
+
+Registries **SHOULD** enforce a maximum manifest size. If a manifest exceeds this limit, the registry **SHOULD** respond with:
 
 ```
-Location: <location>
+413 Payload Too Large
 ```
 
-The `<location>` is a pullable manifest URL.
-The Docker-Content-Digest header returns the digest of the uploaded blob, and MUST be equal to the client provided digest.
-Clients MAY ignore the value but if it is used, the client SHOULD verify the value against the uploaded blob data.
+Clients and registries **SHOULD** expect to support manifest uploads of at least 4 MiB.
 
-An attempt to pull a nonexistent repository MUST return response code `404 Not Found`.
+---
 
-A registry SHOULD enforce some limit on the maximum manifest size that it can accept.
-A registry that enforces this limit SHOULD respond to a request to push a manifest over this limit with a response code `413 Payload Too Large`.
-Client and registry implementations SHOULD expect to be able to support manifest pushes of at least 4 megabytes.
+##### Pushing a manifest with a subject field
 
-###### Pushing Manifests with Subject
 
-When processing a request for an image manifest with the `subject` field, a registry implementation that supports the [referrers API](#listing-referrers) MUST respond with the response header `OCI-Subject: <subject digest>` to indicate to the client that the registry processed the request's `subject`.
+```
+OCI-Subject: <subject digest>
+```
 
-When pushing a manifest with the `subject` field and the `OCI-Subject` header was not set, the client MUST:
+This header tells the client that the registry has processed the `subject` value.
 
-1. Pull the current referrers list using the [referrers tag schema](#referrers-tag-schema).
-1. If that pull returns a manifest other than the expected image index, the client SHOULD report a failure and skip the remaining steps.
-1. If the tag returns a 404, the client MUST begin with an empty image index.
-1. Verify the descriptor for the manifest is not already in the referrers list (duplicate entries SHOULD NOT be created).
-1. Append a descriptor for the pushed manifest to the manifests in the referrers list.
-   The value of the `artifactType` MUST be set to the `artifactType` value in the pushed manifest, if present.
-   If the `artifactType` is empty or missing in a pushed image manifest, the value of `artifactType` MUST be set to the config descriptor `mediaType` value.
-   All annotations from the pushed manifest MUST be copied to this descriptor.
-1. Push the updated referrers list using the same [referrers tag schema](#referrers-tag-schema).
-   The client MAY use conditional HTTP requests to prevent overwriting a referrers list that has changed since it was first pulled.
+If the client pushes a manifest with a `subject` field **and the registry does not return the `OCI-Subject` header**, the client **MUST** update the referrers list itself by following these steps:
 
-#### Content Discovery
+1. **Pull the current referrers list** using the [referrers tag schema](#referrers-tag-schema).
+2. If the pull returns a manifest that is **not** the expected image index, the client **SHOULD** treat this as a failure and stop.
+3. If the pull returns **404**, the client **MUST** start with an **empty image index**.
+4. **Check that the descriptor for the pushed manifest is not already present** in the referrers list. Duplicate entries **SHOULD NOT** be created.
+5. **Add a descriptor** for the pushed manifest to the list of `manifests`:
+   - The descriptor’s `artifactType` **MUST** be set to the manifest’s own `artifactType`, if present.
+   - If the pushed image manifest has no `artifactType` or it is empty, the descriptor’s `artifactType` **MUST** be set to the config descriptor’s `mediaType`.
+   - All annotations from the pushed manifest **MUST** be copied into the descriptor.
+6. **Push the updated referrers list** using the same [referrers tag schema](#referrers-tag-schema).
+   - The client **MAY** use conditional HTTP requests to avoid overwriting a referrers list that has changed since it was first pulled.
 
-##### Listing Tags
+---
 
-To fetch the list of tags, perform a `GET` request to a path in the following format: `/v2/<name>/tags/list` <sup>[end-8a](#endpoints)</sup>
+### Content Discovery: Listing Tags
 
-`<name>` is the namespace of the repository.
-Assuming a repository is found, this request MUST return a `200 OK` response code.
-The list of tags MAY be empty if there are no tags on the repository.
-If the list is not empty, the tags MUST be in lexical (i.e. case-insensitive alphanumeric order) or "ASCIIbetical" ([Go's `sort.Strings`](https://pkg.go.dev/sort#Strings)) order.
+To list the tags in a repository, the client sends a `GET` request to:
 
-Upon success, the response MUST be a json body in the following format:
+```
+/v2/<name>/tags/list
+```
+
+`<name>` is the repository namespace.
+If the repository exists, the registry **MUST** return `200 OK`.
+The list of tags **MAY** be empty.
+If the list is not empty, the tags **MUST** be sorted in lexical (case‑insensitive alphanumeric) or “ASCIIbetical” order (as defined by Go’s `sort.Strings`).
+
+A successful response **MUST** return JSON in this form:
+
 ```json
 {
   "name": "<name>",
@@ -714,57 +746,96 @@ Upon success, the response MUST be a json body in the following format:
 }
 ```
 
-`<name>` is the namespace of the repository, and `<tag1>`, `<tag2>`, and `<tag3>` are each tags on the repository.
+Each `<tagX>` is a tag present in the repository.
 
-In addition to fetching the whole list of tags, a subset of the tags can be fetched by providing the `n` query parameter.
-In this case, the path will look like the following: `/v2/<name>/tags/list?n=<int>` <sup>[end-8b](#endpoints)</sup>
+---
 
-`<name>` is the namespace of the repository, and `<int>` is an integer specifying the number of tags requested.
-The response to such a request MAY return fewer than `<int>` results, but only when the total number of tags attached to the repository is less than `<int>` or a `Link` header is provided.
-Otherwise, the response MUST include `<int>` results.
-A `Link` header MAY be included in the response when additional tags are available.
-If included, the `Link` header MUST be set according to [RFC5988](https://www.rfc-editor.org/rfc/rfc5988.html) with the Relation Type `rel="next"`.
-When `n` is zero, this endpoint MUST return an empty list, and MUST NOT include a `Link` header.
-Without the `last` query parameter (described next), the list returned will start at the beginning of the list and include `<int>` results.
-As above, the tags MUST be in lexical or "ASCIIbetical" order.
+### Limiting the Number of Returned Tags (`n` parameter)
 
-The `last` query parameter provides further means for limiting the number of tags.
-It is usually used in combination with the `n` parameter: `/v2/<name>/tags/list?n=<int>&last=<tagname>` <sup>[end-8b](#endpoints)</sup>
+`<int>` sets the **maximum** number of tags the client wants returned.
 
-`<name>` is the namespace of the repository, `<int>` is the number of tags requested, and `<tagname>` is the *value* of the last tag.
-`<tagname>` MUST NOT be a numerical index, but rather it MUST be a proper tag.
-A request of this sort will return up to `<int>` tags, beginning non-inclusively with `<tagname>`.
-That is to say, `<tagname>` will not be included in the results, but up to `<int>` tags *after* `<tagname>` will be returned.
-The tags MUST be in lexical or "ASCIIbetical" order.
+The registry’s behavior is:
 
-When using the `last` query parameter, the `n` parameter is OPTIONAL.
+- It **returns up to `<int>` tags`**, always sorted in lexical or ASCIIbetical order.
+- It **may return fewer** than `<int>` tags in two cases:
+  - the repository simply has fewer than `<int>` tags, or
+  - the registry includes a `Link` header indicating that more tags exist beyond this page.
+- In every other situation, it **must return exactly `<int>` tags**.
+- If more tags are available, the registry **may** include a `Link` header (RFC5988) with `rel="next"`.
+- If `n=0`, the registry **must** return an empty list and **must not** include a `Link` header.
+- When the `last` parameter is not used, the registry returns the **first** `<int>` tags in order.
 
-_Implementers note:_
-Previous versions of this specification did not include the `Link` header.
-Clients depending on the number of tags returned matching `n` may prematurely stop pagination on registries using the `Link` header.
-When available, clients should prefer the `Link` header over using the `last` parameter for pagination.
+---
 
-##### Listing Referrers
+### Paginating with the `last` Parameter
 
-*Note: this feature was added in distibution-spec 1.1.
-Registries should see [Enabling the Referrers API](#enabling-the-referrers-api) before enabling this.*
+The `last` parameter allows the client to request tags that come *after* a specific tag:
 
-To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<digest>` <sup>[end-12a](#endpoints)</sup>.
+```
+/v2/<name>/tags/list?n=<int>&last=<tagname>
+```
 
-`<name>` is the namespace of the repository, and `<digest>` is the digest of the manifest specified in the `subject` field.
+- `<tagname>` is the *value* of the last tag previously returned.
+  It **MUST NOT** be a numeric index.
+- The registry returns up to `<int>` tags that appear **after** `<tagname>` in lexical/ASCIIbetical order.
+- `<tagname>` itself is **not** included in the results.
+- When using `last`, the `n` parameter is optional.
+- Returned tags **MUST** be sorted in lexical or ASCIIbetical order.
 
-Assuming a repository is found, this request MUST return a `200 OK` response code.
-If the registry supports the referrers API, the registry MUST NOT return a `404 Not Found` to a referrers API requests.
-If the request is invalid, such as a `<digest>` with an invalid syntax, a `400 Bad Request` MUST be returned.
+---
 
-Upon success, the response MUST be a JSON body with an image index containing a list of descriptors.
-The `Content-Type` header MUST be set to `application/vnd.oci.image.index.v1+json`.
-Each descriptor is of an image manifest or index in the same `<name>` namespace with a `subject` field that specifies the value of `<digest>`.
-The descriptors MUST include an `artifactType` field that is set to the value of the `artifactType` in the image manifest or index, if present.
-If the `artifactType` is empty or missing in the image manifest, the value of `artifactType` MUST be set to the config descriptor `mediaType` value.
-If the `artifactType` is empty or missing in an index, the `artifactType` MUST be omitted.
-The descriptors MUST include annotations from the image manifest or index.
-If a query results in no matching referrers, an empty manifest list MUST be returned.
+### Implementer’s Note
+
+Earlier versions of this specification did not define the `Link` header.
+Clients that assume the number of returned tags always equals `n` may incorrectly stop paginating when interacting with registries that use `Link` headers.
+When available, clients should prefer the `Link` header over the `last` parameter for pagination.
+
+---
+
+### Implementer’s Note
+
+Earlier versions of this specification did not define the `Link` header.
+Clients that assume the number of returned tags always equals `n` may incorrectly stop paginating when interacting with registries that use `Link` headers.
+When available, clients should prefer the `Link` header over the `last` parameter for pagination.
+
+---
+
+### Listing Referrers
+
+This API was introduced in distribution‑spec 1.1. Registries should review *Enabling the Referrers API* before turning it on.
+
+To retrieve the list of referrers for a manifest, the client sends:
+
+```
+GET /v2/<name>/referrers/<digest>
+```
+
+`<name>` is the repository namespace.
+`<digest>` is the digest of the manifest referenced in another manifest’s `subject` field.
+
+If the repository exists, the registry **MUST** return `200 OK`.
+A registry that supports the referrers API **MUST NOT** return `404 Not Found` for referrers requests.
+If the request is invalid (for example, `<digest>` has invalid syntax), the registry **MUST** return `400 Bad Request`.
+
+---
+
+### Response Format
+
+A successful response **MUST** return an OCI image index as JSON, with:
+
+- `Content-Type: application/vnd.oci.image.index.v1+json`
+- A `manifests` array containing descriptors for all manifests or indexes in `<name>` whose `subject` equals `<digest>`
+
+Each descriptor:
+
+- **MUST** include `artifactType` if the referenced manifest or index defines one.
+- If the referenced **manifest** has no `artifactType`, the descriptor’s `artifactType` **MUST** be set to the config descriptor’s `mediaType`.
+- If the referenced **index** has no `artifactType`, the descriptor’s `artifactType` **MUST** be omitted.
+- **MUST** include all annotations from the referenced manifest or index.
+
+If no referrers exist, the registry **MUST** return an image index with an empty `manifests` list.
+
+Example:
 
 ```json
 {
@@ -796,31 +867,48 @@ If a query results in no matching referrers, an empty manifest list MUST be retu
       "size": 1234,
       "digest": "sha256:a3a3a3...",
       "annotations": {
-        "org.opencontainers.image.created": "2023-01-01T07:21:33Z",
+        "org.opencontainers.image.created": "2023-01-01T07:21:33Z"
       }
     }
   ]
 }
 ```
 
-A `Link` header MUST be included in the response when the descriptor list cannot be returned in a single manifest.
-Each response is an image index with different descriptors in the `manifests` field.
-The `Link` header MUST be set according to [RFC5988](https://www.rfc-editor.org/rfc/rfc5988.html) with the Relation Type `rel="next"`.
+---
 
-The registry SHOULD support filtering on `artifactType`.
-To fetch the list of referrers with a filter, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<digest>?artifactType=<artifactType>` <sup>[end-12b](#endpoints)</sup>.
-If filtering is requested and applied, the response MUST include a header `OCI-Filters-Applied: artifactType` denoting that an `artifactType` filter was applied.
-If multiple filters are applied, the header MUST contain a comma separated list of applied filters.
+### Pagination
 
-Example request with filtering:
+If the registry cannot return all descriptors in a single response, it **MUST** include a `Link` header pointing to the next page.
+The header **MUST** follow RFC5988 and use `rel="next"`.
+
+Each page is a valid image index containing a different subset of descriptors.
+
+---
+
+### Filtering by `artifactType`
+
+Registries **SHOULD** support filtering referrers by `artifactType`.
+To request filtering:
+
+```
+GET /v2/<name>/referrers/<digest>?artifactType=<artifactType>
+```
+
+If the registry applies the filter:
+
+- The response **MUST** include
+  `OCI-Filters-Applied: artifactType`
+- If multiple filters are applied, the header **MUST** list them comma‑separated.
+
+Example request:
 
 ```
 GET /v2/<name>/referrers/<digest>?artifactType=application/vnd.example.sbom.v1
 ```
 
-Example response with filtering:
+Example response:
 
-```json
+```
 OCI-Filters-Applied: artifactType
 {
   "schemaVersion": 2,
@@ -836,13 +924,20 @@ OCI-Filters-Applied: artifactType
         "org.example.sbom.format": "json"
       }
     }
-  ],
+  ]
 }
 ```
 
-If the [referrers API](#listing-referrers) returns a 404, the client MUST fallback to pulling the [referrers tag schema](#referrers-tag-schema).
-The response SHOULD be an image index with the same content that would be expected from the referrers API.
-If the response to the [referrers API](#listing-referrers) is a 404, and the tag schema does not return a valid image index, the client SHOULD assume there are no referrers to the manifest.
+---
+
+### Fallback Behavior
+
+If the referrers API returns `404`, the client **MUST** fall back to the *referrers tag schema*.
+The fallback response **SHOULD** contain the same information that the referrers API would have returned.
+
+If the referrers API returns `404` **and** the tag schema does not return a valid image index, the client **SHOULD** assume that no referrers exist for the manifest.
+
+---
 
 #### Content Management
 
@@ -919,26 +1014,52 @@ This section describes client fallback procedures that MUST be implemented when 
 A client that pushes an image manifest with a defined `subject` field MUST verify the [referrers API](#listing-referrers) is available or fallback to updating the image index pushed to a tag described by the [referrers tag schema](#referrers-tag-schema).
 A client querying the [referrers API](#listing-referrers) and receiving a `404 Not Found` MUST fallback to using an image index pushed to a tag described by the [referrers tag schema](#referrers-tag-schema).
 
-##### Referrers Tag Schema
+---
 
-The Referrers Tag associated with a [Content Digest](https://github.com/opencontainers/image-spec/blob/v1.0.1/descriptor.md#digests) <sup>[apdx-3](#appendix)</sup> MUST match the Truncated Algorithm, a `-` character, and the Truncated Encoded section, with any characters not allowed by [`<reference>` tags](#pulling-manifests) replaced with `-`.
-The Truncated Algorithm associated with a Content Digest MUST match the digest's `algorithm` section truncated to 32 characters.
-The Truncated Encoded section associated with a Content Digest MUST match the digest's `encoded` section truncated to 64 characters.
+### Referrers Tag Schema
 
-For example, the following list maps `subject` field digests to Referrers Tags:
+The *Referrers Tag* for a given [Content Digest](https://github.com/opencontainers/image-spec/blob/v1.0.1/descriptor.md#digests) is a deterministic tag name derived from the digest.
+The tag name is constructed from two truncated components:
+
+- the **Truncated Algorithm** (first 32 characters of the digest’s `algorithm` section)
+- a hyphen (`-`)
+- the **Truncated Encoded** value (first 64 characters of the digest’s `encoded` section, with any characters not allowed in `<reference>` tags replaced by `-`)
+
+The resulting string **MUST** be used as the Referrers Tag for that digest.
+
+#### Truncation rules
+
+- The **Truncated Algorithm** **MUST** be the digest’s algorithm truncated to 32 characters.
+- The **Truncated Encoded** value **MUST** be the digest’s encoded portion truncated to 64 characters.
+- Any characters in the encoded portion that are not valid in a `<reference>` tag **MUST** be replaced with `-`.
+
+#### Examples
 
 | Digest | Truncated Algorithm | Truncated Encoded | Referrers Tag |
 | ------ | ------------------- | ----------------- | ------------- |
-| sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | sha256 | aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa |
-| sha512:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | sha512 | aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa |
-| test+algorithm+using+algorithm+separators+and+lots+of+characters+to+excercise+overall+truncation:alsoSome=InTheEncodedSectionToShowHyphenReplacementAndLotsAndLotsOfCharactersToExcerciseEncodedTruncation | test+algorithm+using+algorithm+s | alsoSome=InTheEncodedSectionToShowHyphenReplacementAndLotsAndLot | test-algorithm-using-algorithm-s-alsoSome-InTheEncodedSectionToShowHyphenReplacementAndLotsAndLot |
+| `sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` | `sha256` | `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` | `sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` |
+| `sha512:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` | `sha512` | `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` | `sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` |
+| `test+algorithm+using+algorithm+separators+and+lots+of+characters+to+excercise+overall+truncation:alsoSome=InTheEncodedSectionToShowHyphenReplacementAndLotsAndLotsOfCharactersToExcerciseEncodedTruncation` | `test+algorithm+using+algorithm+s` | `alsoSome=InTheEncodedSectionToShowHyphenReplacementAndLotsAndLot` | `test-algorithm-using-algorithm-s-alsoSome-InTheEncodedSectionToShowHyphenReplacementAndLotsAndLot` |
 
-This tag should return an image index matching the expected response of the [referrers API](#listing-referrers).
-Maintaining the content of this tag is the responsibility of clients pushing and deleting image manifests that contain a `subject` field.
+---
 
-*Note*: multiple clients could attempt to update the tag simultaneously resulting in race conditions and data loss.
-Protection against race conditions is the responsibility of clients and end users, and can be resolved by using a registry that provides the [referrers API](#listing-referrers).
-Clients MAY use a conditional HTTP push for registries that support ETag conditions to avoid conflicts with other clients.
+### Expected Content of the Referrers Tag
+
+Fetching this tag **SHOULD** return an OCI image index containing the same descriptors that the [referrers API](#listing-referrers) would return.
+Maintaining the correctness of this tag is the responsibility of **clients** that push or delete manifests containing a `subject` field.
+
+---
+
+### Concurrency and Race Conditions
+
+Multiple clients may attempt to update the Referrers Tag at the same time.
+This can lead to race conditions and data loss.
+
+- Preventing these conflicts is the responsibility of **clients and end users**.
+- Using a registry that implements the referrers API avoids these issues entirely.
+- Clients **MAY** use conditional HTTP requests (e.g., ETag‑based conditions) when pushing the tag to prevent overwriting updates made by other clients.
+
+---
 
 ### Upgrade Procedures
 
