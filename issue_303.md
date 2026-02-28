@@ -1,9 +1,9 @@
-## Formal Summary Document — Discussion on “Streamed Blob Upload not defined by spec”  
-**Repository:** opencontainers/distribution-spec  
-**Issue:** #303 — *Streamed Blob Upload not defined by spec*  
-**URL:** https://github.com/opencontainers/distribution-spec/issues/303  
-**Date of summary:** 2026-02-27  
-**Reported by:** martencassel  
+## Formal Summary Document — Discussion on “Streamed Blob Upload not defined by spec”
+**Repository:** opencontainers/distribution-spec
+**Issue:** #303 — *Streamed Blob Upload not defined by spec*
+**URL:** https://github.com/opencontainers/distribution-spec/issues/303
+**Date of summary:** 2026-02-27
+**Reported by:** martencassel
 
 ---
 
@@ -35,15 +35,15 @@ The chunked upload narrative implies a PATCH request includes `Content-Range` (a
 
 The author highlights text that lists expected headers for a PATCH upload chunk:
 
-- `Content-Type: application/octet-stream`  
-- `Content-Range: <range>`  
+- `Content-Type: application/octet-stream`
+- `Content-Range: <range>`
 - `Content-Length: <length>`
 
 But the spec text, as written, may constrain the **values/meaning** of these headers without explicitly stating whether each header is **mandatory** in all cases.
 
 #### 3.3 Conformance tests imply a “streamed” upload mode
 The author references a conformance test that performs:
-- a **single PATCH** request **without** `Content-Range`, followed by  
+- a **single PATCH** request **without** `Content-Range`, followed by
 - a **finalizing PUT** request to close the upload
 
 This appears different from:
@@ -103,12 +103,63 @@ The author notes they cannot currently produce a pull request but are willing to
 ---
 
 ### 8. Key References
-- Spec section on blob upload modes:  
+- Spec section on blob upload modes:
   https://github.com/opencontainers/distribution-spec/blob/main/spec.md?plain=1#L197
-- Conformance test indicating streamed behavior:  
+- Conformance test indicating streamed behavior:
   https://github.com/opencontainers/distribution-spec/blob/main/conformance/02_push_test.go#L21
-- Historical commit referencing streamed upload spec:  
+- Historical commit referencing streamed upload spec:
   https://github.com/opencontainers/distribution-spec/commit/92e1994a4f13cff06c03f11d86b40ade4ed92730
 
 ---
 
+## Formal Summary — Comments in Issue #303 (“Streamed Blob Upload not defined by spec”)
+
+**Repository:** opencontainers/distribution-spec
+**Issue:** #303 — Streamed Blob Upload not defined by spec
+**Scope of this summary:** The *comment thread* (responses after the issue description)
+
+### 1. Main Themes Raised in the Comments
+The comments converge on three related points:
+
+1. **The “streamed upload” behavior may not be a distinct third mode**, but rather a practical variant of chunked upload used by common clients.
+2. **The specification text is not sufficiently precise** about whether `PATCH` requests must include specific headers (notably `Content-Range` and `Content-Length`), especially given real-world client behavior.
+3. **There is broader dissatisfaction with the current “chunked upload” design**, including questions about why it diverges from standard HTTP mechanisms such as `Transfer-Encoding: chunked`.
+
+---
+
+### 2. Comment-by-Comment Summary (Chronological)
+
+**(a) jdolitsky (2021-10-20)**
+- Agrees that the observed “streamed” behavior appears valid.
+- Suggests it is essentially **chunked upload** and notes chunked upload is tested elsewhere.
+- Asks maintainer input (tags @jonjohnsonjr) on whether the specific conformance test that triggered the concern should be removed.
+
+**(b) jonjohnsonjr (2021-11-29)**
+- States that the behavior appears common across implementations.
+- Concludes that, because it is **ubiquitous**, the correct response may be to **document it explicitly** rather than remove it from tests.
+
+**(c) mpreu (2022-12-01)**
+- Confirms encountering the same ambiguity when reading the spec.
+- Notes that widely used tooling (example: **podman**) sometimes sends:
+  - `Transfer-Encoding: chunked`, and/or
+  - `Content-Length` without `Content-Range`
+- Argues that the spec wording should be **more explicit** on header requirements, particularly since conformance tests appear to allow behavior that the spec does not clearly describe.
+
+**(d) haampie (2023-08-06)**
+- Challenges the motivation behind OCI’s custom chunked upload mechanism:
+  - It uses **non-standard** `Content-Range` semantics (relative to typical HTTP expectations).
+  - It still effectively requires **ordered** uploading, limiting the benefits of “chunking.”
+- Observes that in practice most implementations prefer a workflow resembling:
+  - `POST` to start + **single monolithic `PATCH`** + `PUT` to finalize
+  rather than multiple PATCH requests.
+- Notes implementation complexity and performance drawbacks of multiple PATCH requests.
+- Asks why `Transfer-Encoding: chunked` works in practice—suggesting servers/frameworks may transparently handle it without registry-specific logic.
+
+---
+
+### 3. Consolidated Conclusion from the Comment Thread
+The commenters do not reach a final resolution, but the emerging consensus is:
+
+- The conformance-tested “streamed” pattern is **common in practice** and likely should be **explicitly documented or clarified** in the specification.
+- The spec’s requirements for **chunked upload request headers** (especially the presence/necessity of `Content-Range`) are **ambiguous** and should be tightened to match real-world interoperability.
+- There is interest in revisiting the overall chunked upload approach in future spec revisions to better align with standard HTTP transfer mechanisms and implementation realities.

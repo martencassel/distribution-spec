@@ -328,13 +328,6 @@ If the manifest or blob does not exist, the registry **must** return:
 
 - **404 Not Found**
 
-#### Push
-
-
-Here is a rewritten version of the **Push** introduction and **Pushing blobs** section. Every normative requirement, every MUST/SHOULD/MAY, and every rule from the original text is preserved. The only changes are structural: shorter paragraphs, clearer grouping, and more readable flow for implementors.
-
----
-
 ### Push
 
 Pushing an object to a registry generally happens in the reverse order of pulling. The **blobs** that make up the object are uploaded first, and the **manifest** is uploaded last. This ordering ensures that when a manifest is pushed, all referenced content is already available in the repository.
@@ -368,12 +361,6 @@ Both methods result in the registry receiving the complete blob in a single cont
 ---
 
 ###### POST then PUT
-
-
-Here is a fully rewritten version of the **POST then PUT** monolithic upload section.
-It preserves **every single requirement, MUST/SHOULD/MAY, header, rule, and nuance**, but restructures the content into a clean, readable, implementor‑friendly format with short paragraphs and clear lists.
-
----
 
 ### Monolithic blob upload: POST then PUT
 
