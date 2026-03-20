@@ -189,6 +189,203 @@ Check-If-ContentExists(registry, content) {
 6. In such cases, clients can reasonably assume `sha256`.
 7. If the blob or manifest is not found, the response code MUST be `404 Not Found`.
 
+# Push
+
+1. Pushing an object typically works in the opposite order as a pull:
+2. The blobs making up the object are uploaded first, and the manifest last. A useful diagram is provided here.
+3. A registry MUST initially accept an otherwise valid manifest with a subject field that references a manifest that does not exist in the repository, allowing clients to push a manifest and referrers to that manifest in either order.
+4. A registry MAY reject a manifest uploaded to the manifest endpoint with descriptors in other fields that reference a manifest or blob that does not exist in the registry.
+5. When a manifest is rejected for this reason, it MUST result in one or more MANIFEST_BLOB_UNKNOWN errors code-1.
+
+## Pushing Blobs
+
+BLOB PUSH METHODS = "MONO METHODS" + "CHUNKED" 
+MONO METHODS      = "POST then PUT" + "Single POST"
+
+# POST then PUT
+To push a blob monolithiclly by using a POST request followed by a PUT request, there are two steps:a
+
+1. Obtain a session id (upload URL)
+2. Upload the blob to said URL
+
+# Single POST
+
+1. 
+To push a blob monolithically by using a single POST request, perform a POST request to a URL in the following form, and with the following headers and body:
+
+POST /v2/<name>/blobs/uploads/?digest=<digest> end-4b
+Content-Lngth: <length>
+Content-Type: application/octet-streame
+<upload bte stream>
+
+Registries that do not support single request monolithic uploads SHOULD return a 202 Accepted status code and Location header and clients SHOULD proceed with a subsequent PUT request, as described by the POST then PUT upload method.
+
+Successful completion of the request MUST return a 201 Created and MUST include the following header:
+Location: <blob-location>
+
+
+# CHUNKED (Pushing blobs in chunks)
+
+
+# 1. 
+Obtain a session ID (upload URL)
+
+# 2. 
+Upload the chunks (PATCH)
+
+# 3. 
+Close the session (PUT)
+
+
+# Cancel a blob upload
+
+During a blob upload, the session may be canceled with a DELETE request:
+URL Path: <location>
+Content-Length: 0
+
+# Pushing Manifests with Subject
+
+# 1.
+When processing a request for an image manifest with the subject field, a registry implementation that supports the referrers API MUST respond with the response header OCI-Subject: <subject digest> to indicate to the client that the registry processed the request's subject.
+
+Client Request:
+	Image Manifest = { .subject = ... }
+
+OCI Server (that supports referrer api):
+	Header: OCI-Subject: <subject digest> (We ack that we processed image manifest.subjecg
+
+# 2. 
+When pushing a manifest with the subject field and the OCI-Subject header was not set, the client MUST:
+
+# 3.
+Pull the current referrers list using the referrers tag schema.
+
+# 4.
+If that pull returns a manifest other than the expected image index, the client SHOULD report a failure and skip the remaining steps.
+
+# 5.
+If the tag returns a 404, the client MUST begin with an empty image index.
+
+# 6
+Verify the descriptor for the manifest is not already in the referrers list (duplicate entries SHOULD NOT be created).
+
+# 7
+Append a descriptor for the pushed manifest to the manifests in the referrers list. 
+
+# 8
+The value of the artifactType MUST be set to the artifactType value in the pushed manifest, if present. 
+
+# 9
+If the artifactType is empty or missing in a pushed image manifest, the value of artifactType MUST be set to the config descriptor mediaType value. 
+
+# 10
+All annotations from the pushed manifest MUST be copied to this descriptor.
+
+# 11
+Push the updated referrers list using the same referrers tag schema. 
+
+# 12
+The client MAY use conditional HTTP requests to prevent overwriting a referrers list that has changed since it was first pulled.
+
+# Content Discovery
+
+# Listing Tags
+To fetch the list of tags, perform a GET request to a path in the following format: /v2/<name>/tags/list end-8a
+
+# Listing Referrers
+To fetch the list of referrers, perform a GET request to a path in the following format: /v2/<name>/referrers/<digest> end-12a.
+
+# 1.1
+Upon success, the response MUST be a JSON body with an image index containing a list of descriptors. 
+
+# 1.2
+The Content-Type header MUST be set to application/vnd.oci.image.index.v1+json. 
+
+# 1.3
+Each descriptor is of an image manifest or index in the same <name> namespace with a subject field that specifies the value of <digest>. 
+
+# 1.4
+The descriptors MUST include an artifactType field that is set to the value of the artifactType in the image manifest or index, if present. 
+
+# 1.5
+If the artifactType is empty or missing in the image manifest, the value of artifactType MUST be set to the config descriptor mediaType value. 
+
+# 1.6
+If the artifactType is empty or missing in an index, the artifactType MUST be omitted. 
+
+# 1.7
+The descriptors MUST include annotations from the image manifest or index. 
+
+# 1.8
+If a query results in no matching referrers, an empty manifest list MUST be returned.
+
+```json
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.index.v1+json",
+  "manifests": [
+    {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "size": 1234,
+      "digest": "sha256:a1a1a1...",
+      "artifactType": "application/vnd.example.sbom.v1",
+      "annotations": {
+        "org.opencontainers.image.created": "2022-01-01T14:42:55Z",
+        "org.example.sbom.format": "json"
+      }
+    },
+    {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "size": 1234,
+      "digest": "sha256:a2a2a2...",
+      "artifactType": "application/vnd.example.signature.v1",
+      "annotations": {
+        "org.opencontainers.image.created": "2022-01-01T07:21:33Z",
+        "org.example.signature.fingerprint": "abcd"
+      }
+    },
+    {
+      "mediaType": "application/vnd.oci.image.index.v1+json",
+      "size": 1234,
+      "digest": "sha256:a3a3a3...",
+      "annotations": {
+        "org.opencontainers.image.created": "2023-01-01T07:21:33Z",
+      }
+    }
+  ]
+}
+```
+
+# SUPPORT filtering on artifactType
+
+The registry SHOULD support filtering on artifactType. To fetch the list of referrers with a filter, perform a GET request to a path in the following format: /v2/<name>/referrers/<digest>?artifactType=<artifactType> end-12b. If filtering is requested and applied, the response MUST include a header OCI-Filters-Applied: artifactType denoting that an artifactType filter was applied. If multiple filters are applied, the header MUST contain a comma separated list of applied filters.
+
+Example request with filtering:
+
+GET /v2/<name>/referrers/<digest>?artifactType=application/vnd.example.sbom.v1
+
+
+# Fallback
+
+If the referrers API returns a 404, the client MUST fallback to pulling the referrers tag schema. The response SHOULD be an image index with the same content that would be expected from the referrers API. If the response to the referrers API is a 404, and the tag schema does not return a valid image index, the client SHOULD assume there are no referrers to the manifest.
+
+# Deleting a Manifest
+
+To delete a manifest, perform a DELETE request to a path in the following format: /v2/<name>/manifests/<digest> end-9
+
+<name> is the namespace of the repository, and <digest> is the digest of the manifest to be deleted. Upon success, the registry MUST respond with a 202 Accepted code. If the repository does not exist, the response MUST return 404 Not Found. If manifest deletion is disabled, the registry MUST respond with either a 400 Bad Request or a 405 Method Not Allowed.
+
+Once deleted, a GET to /v2/<name>/manifests/<digest> and any tag pointing to that digest will return a 404.
+
+When deleting an image manifest that contains a subject field, and the referrers API returns a 404, clients SHOULD:
+
+1. Pull the referrers list using the referrers tag schema.
+2. Remove the descriptor entry from the array of manifests that references the deleted manifest.
+3. Push the updated referrers list using the same referrers tag schema. The client MAY use conditional HTTP requests to prevent overwriting an referrers list that has changed since it was first pulled.
+4. When deleting a manifest that has an associated referrers tag schema, clients MAY also delete the referrers tag when it returns a valid image index.
+
+
+
 ## Appendix 3: Content Digests
 Reference: https://github.com/opencontainers/image-spec/blob/v1.0.1/descriptor.md#digests
 
@@ -226,16 +423,83 @@ If the response body is JSON, it MUST have the following format:
 | ID | Code | Description |
 | --- | --- | --- |
 | code-1 | BLOB_UNKNOWN | blob unknown to registry |
+
+- A registry MAY reject a manifest uploaded to the manifest endpoint with descriptors in other fields
+  that reference a manifest or blob that does not exist in the registry.
+
+
 | code-2 | BLOB_UPLOAD_INVALID | blob upload invalid |
+
+
 | code-3 | BLOB_UPLOAD_UNKNOWN | blob upload unknown to registry |
+
+- end-5: PATCH blob upload 
+- end-6: PUT blob upload
+- end-13: GET blob upload
+- end-14: DELETE blob upload
+
 | code-4 | DIGEST_INVALID | provided digest did not match uploaded content |
 | code-5 | MANIFEST_BLOB_UNKNOWN | manifest references a manifest or blob unknown to registry |
 | code-6 | MANIFEST_INVALID | manifest invalid |
 | code-7 | MANIFEST_UNKNOWN | manifest unknown to registry |
+
+- end-3, end-7, end-9
+
 | code-8 | NAME_INVALID | invalid repository name |
 | code-9 | NAME_UNKNOWN | repository name not known to registry |
+
 | code-10 | SIZE_INVALID | provided length did not match content length |
 | code-11 | UNAUTHORIZED | authentication required |
+
 | code-12 | DENIED | requested access to the resource is denied |
 | code-13 | UNSUPPORTED | the operation is unsupported |
 | code-14 | TOOMANYREQUESTS | too many requests |
+
+# Entity Relationships
+
+## Entities
+
+Repository
+	Name
+
+Manifests
+	Reference
+	Media Type
+	Size
+	Subject
+
+Tags
+	Key: Repository Name
+	Key: Name
+
+Referrers
+	Repository Name
+	Digest
+	ArtifactType
+	
+Blobs
+	Repository Name
+	Digest
+	Size 
+
+## Relationships
+
+Repository HAS Manifests		/v2/<name>/manifests/
+Repository HAS Blobs			/v2/<name>/blobs/
+Repository HAS Tags			/v2/<name>/tags/
+Repository HAS Referrers		/v2/<name>/referrers/
+
+alpine:latest
+	SBOM -> alpine:latest	Manifest(SBOM, ArtifactType=SBOM).Subject = alpine.latest
+	SIG  -> alpine:latest	Manifest(SIG, ArtifactType=SIG).Subject  = alpine.latest
+
+/<name>/referrers/<digest-of-alpine:latest>
+	 "mediaType": "application/vnd.oci.image.index.v1+json",
+	 manifests:
+	 	{  Manifest(SBOM, ArtifactType=SBOM) }
+		{   Manifest(SIG, ArtifactType=SIG).Subject }
+
+## Types
+
+Reference = Digest or Tag
+
