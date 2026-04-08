@@ -174,6 +174,7 @@ GET /v2/<name>/manifests/<reference>
 
 ![Example manifest request flow for an Alpine image](./img/get-manifest-request.png)
 
+![Example](./img/get-manifest-digest.png)
 
 ---
 
@@ -242,6 +243,8 @@ A successful response **must** include:
 - **200 OK**
 - Body: the manifest, byte-for-byte as stored.
 
+![Example response body](./img/response-body.png)
+
 ---
 
 #### Error response
@@ -267,6 +270,8 @@ Retrieving a blob is done with a `GET` request:
 ```
 GET /v2/<name>/blobs/<digest>
 ```
+
+![Pull Blob](./img/pull-blob.png)
 
 ---
 
