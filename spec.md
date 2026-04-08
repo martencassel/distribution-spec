@@ -157,6 +157,13 @@ One or more blobs, which contain the actual data referenced by the manifest.
 
 Most clients begin by requesting the manifest so they know which blobs to fetch. However, the specification does not require this order. Clients may retrieve the manifest and blobs in any sequence, and registries must support this flexibility.
 
+```bash
+podman image pull docker.io/alpine:latest
+```
+
+![Example pull flow for an Alpine image](./img/image-pull-alpine.png)
+
+
 ##### Pulling manifests
 
 Retrieving a manifest is done with a `GET` request:
@@ -164,6 +171,9 @@ Retrieving a manifest is done with a `GET` request:
 ```
 GET /v2/<name>/manifests/<reference>
 ```
+
+![Example manifest request flow for an Alpine image](./img/get-manifest-request.png)
+
 
 ---
 
@@ -201,6 +211,8 @@ No other formats are allowed.
 
 Clients **should** send an `Accept:` header listing the manifest media types they support.
 
+![Example manifest request headers flow for an Alpine image](./img/get-manifest-headers.png)
+
 ---
 
 #### Response headers
@@ -219,6 +231,10 @@ A successful response **must** include:
   - Clients may ignore this header, but if they use it, they **must** verify it matches the returned manifest.
   - If `<reference>` is a digest, clients **should** verify that the returned manifest matches that digest.
 
+![Example manifest response headers flow for an Alpine image](./img/get-manifest-response-headers.png)
+
+
+
 ---
 
 #### Successful response
@@ -231,6 +247,9 @@ A successful response **must** include:
 #### Error response
 
 - **404 Not Found** if the manifest does not exist.
+
+![Example manifest not found](./img/manifest-not-found-response.png)
+
 
 ---
 
