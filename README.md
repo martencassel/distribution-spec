@@ -30,10 +30,7 @@ PUT session?digest=sha256 with full_blob
 POST /uploads?digest=sha256 with full_blob
 ```
 
-
-
-
-# Chunked Uploads Detailed
+### **Chunked Uploads Detailed**
 
 ```text
 # Start upload session
