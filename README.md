@@ -47,3 +47,71 @@ for chunk in blob.split_into_chunks():
 PUT upload_url?digest=<sha256-of-blob>
     Body: empty
 ```
+
+
+### **API Reference: Blob Upload Operations**
+
+## 1. Start upload session
+
+```http
+POST /v2/<name>/blobs/uploads/
+→ 202 Accepted
+Location: <upload-location>
+```
+- <upload-location> MUST contain a unique session ID.
+- MAY be absolute or relative.
+- Client MUST treat it as opaque.
+
+## 2. Chunked upload
+Send chunk
+
+```http
+PATCH <upload-location>
+Content-Type: application/octet-stream
+Content-Length: <chunk-size>
+<chunk-bytes>
+```
+- MAY return updated Location: header.
+
+## Finalize
+
+```http
+PUT <upload-location>?digest=<sha256>
+Content-Length: 0
+
+201 Created
+Location: <blob-location>
+```
+
+## 3. Monolithic upload (POST → PUT)
+
+```http
+POST /v2/<name>/blobs/uploads/
+→ 202 Accepted
+Location: <upload-location>
+
+PUT <upload-location>?digest=<sha256>
+Content-Type: application/octet-stream
+Content-Length: <size>
+
+<full-blob>
+```
+
+## 4. Monolithic upload (single POST)
+
+```http
+POST /v2/<name>/blobs/uploads/?digest=<sha256>
+Content-Type: application/octet-stream
+Content-Length: <size>
+
+<full-blob>
+
+→ 201 Created
+→ Location: <blob-location>
+```
+
+
+### From issues
+
+Most clients use POST → monolithic PATCH → PUT.
+
