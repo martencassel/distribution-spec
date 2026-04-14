@@ -1,3 +1,136 @@
+### **Content Negotation**
+
+```http
+send GET with Accept: supported_types
+ct = response.Content-Type (ignore parameters)
+if ct not in supported_types: reject
+if manifest.mediaType exists and != ct: reject
+accept manifest
+```
+
+### **Push Manifest**
+
+```http
+# Prepare manifest JSON
+manifest = {
+    "mediaType": manifest_type,   # MUST be present
+    ...                           # config, layers, etc.
+}
+
+# Compute digest of exact bytes
+digest = sha256(manifest.bytes)
+
+# Determine reference (tag or digest)
+reference = <tag_or_digest>
+
+# Prepare headers
+content_type = manifest.mediaType          # MUST match mediaType
+# MUST NOT include parameters
+headers = {
+    "Content-Type": content_type
+}
+
+# Send PUT request
+resp = PUT /v2/<name>/manifests/<reference>
+        Headers: headers
+        Body: manifest.bytes
+
+# Registry behavior:
+# - MUST store exact bytes
+# - MUST return 201 Created on success
+# - MUST include:
+#       Location: <pullable-manifest-url>
+#       Docker-Content-Digest: digest
+
+if resp.status == 201:
+    server_digest = resp.headers["Docker-Content-Digest"]
+    if server_digest != digest:
+        reject("digest mismatch")
+    return success
+
+# Error cases
+if resp.status == 404:
+    reject("repository does not exist")
+
+if resp.status == 413:
+    reject("manifest too large")
+
+# Other errors
+reject("unexpected response")
+```
+
+```text
+manifest.bytes = encode(manifest)
+digest = sha256(manifest.bytes)
+
+PUT /manifests/<ref>
+    Content-Type: manifest.mediaType
+    Body: manifest.bytes
+
+if resp.status != 201: fail
+if resp.digest != digest: fail
+```
+
+### **Pushing manifest with subject**
+
+```http
+PUT /v2/<name>/manifests/<reference>
+Content-Type: <manifest mediaType>
+Body: <manifest bytes>
+--- response ---
+201 Created
+OCI-Subject: sha256:<digest-of-subject>
+Location: <pullable-manifest-url>
+Docker-Content-Digest: sha256:<digest-of-pushed-manifest>
+```
+
+```http
+push manifest
+if no OCI-Subject header:
+    index = pull referrers list or empty
+    if index.type unexpected: fail
+    if digest not in index: add descriptor
+    push updated index (optionally with If-Match)
+```
+
+```json
+{
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+
+  "config": {
+    "mediaType": "application/vnd.oci.image.config.v1+json",
+    "digest": "sha256:aaa...",
+    "size": 123
+  },
+
+  "layers": [],
+
+  "subject": {
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "digest": "sha256:<<< SUBJECT DIGEST >>>",
+    "size": 456
+  }
+}
+```
+
+```http
+# Assume: manifest includes a "subject" field
+manifest.bytes = encode(manifest)
+digest = sha256(manifest.bytes)
+
+# Push manifest normally
+resp = PUT /v2/<name>/manifests/<reference>
+        Content-Type: manifest.mediaType
+        Body: manifest.bytes
+
+# If registry supports subject processing, it MUST set OCI-Subject
+oci_subject = resp.headers.get("OCI-Subject")
+
+if oci_subject is not None:
+    # Registry handled subject automatically
+    return success
+```
+
 ### **Pushing blobs**
 
 A blob can be uploaded in two ways:
