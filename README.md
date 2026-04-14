@@ -23,6 +23,7 @@ PUT session?digest=sha256
 # POST → PUT
 session = POST /uploads
 PUT session?digest=sha256 with full_blob
+```
 
 ```text
 # or single POST
@@ -30,17 +31,6 @@ POST /uploads?digest=sha256 with full_blob
 ```
 
 
----
-
-## 🔍 If you want it even shorter
-
-**Two upload strategies:**
-- Chunked (multiple requests)
-- Monolithic (one request)
-
-**Two monolithic variants:**
-- POST then PUT
-- Single POST
 
 
 # Chunked Uploads Detailed
