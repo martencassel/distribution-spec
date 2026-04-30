@@ -291,7 +291,16 @@ When a manifest is rejected for this reason, it MUST result in one or more `MANI
 
 #### Pushing blobs
 
-There are two ways to push blobs: monolithic or chunked.
+There are four known ways to push blobs.
+* streamed upload mode: is in the conformance test but no in this text.
+* monolithic POST, single PATCH,PUT: not in the spec
+
+| Push Methods | Description | Properties | |
+| -------- | ------- |---------------|-------------------
+| monolithic | (POST + PUT) or POST | | |
+| chunked | POST + PATCH (per chunk) + PUT | Uses **non-standard** `Content-Range` semantics (relative to typical HTTP expectations).  | |
+| streamed upload mode | PATCH + finalizing PUT | Doesnt use Content-Range header |
+| monolithic POST, single PATCH,PUT |POST to start + **single monolithic `PATCH`** + `PUT` to finalize | most implementations prefer |
 
 #### Monolithic Push
 
