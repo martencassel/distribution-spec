@@ -143,6 +143,14 @@ Typically, the first step in pulling an object is to retrieve the manifest. Howe
 To pull a manifest, perform a `GET` request to a URL in the following form:
 `/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup>
 
+| Request | Description |
+| -------- | ------- |
+| `HTTP Method` | GET |
+| `URL path` | `/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup> |
+| `name` | The repository's namespace |
+| `reference` | The manifest digest |
+
+
 ##### `<name>`
 
 > refers to the namespace of the repository.
@@ -174,6 +182,13 @@ For more information on the use of `Accept` headers and content negotiation, ple
 A GET request to an existing manifest URL MUST provide the expected manifest, with a response code that MUST be `200 OK`.
 A successful response MUST contain the digest of the uploaded blob in the header `Docker-Content-Digest`.
 
+
+| Response Header | Description |
+| -------- | ------- |
+| `Status Code` | 200 OK |
+| `Docker-Content-Digest` | The digest of the uploaded blob |
+
+
 #### `Docker-Content-Digest` header
 
 >The `Docker-Content-Digest` header, if present on the response, returns the digest of the uploaded blob which MAY differ from the provided digest.
@@ -191,6 +206,15 @@ If the `<reference>` part of a manifest request is a digest, clients SHOULD veri
 To pull a blob, perform a `GET` request to a URL in the following form:
 `/v2/<name>/blobs/<digest>` <sup>[end-2](#endpoints)</sup>
 
+
+| Request | Description |
+| -------- | ------- |
+| `HTTP Method` | GET |
+| `URL path` | `/v2/<name>/blobs/<digest>` <sup>[end-2](#endpoints)</sup> |
+| `name` | The repository's namespace |
+| `digest` | The blobs digest |
+
+
 ##### `<name>`
 
 >`<name>` is the namespace of the repository, and `<digest>` is the blob's digest.
@@ -207,6 +231,8 @@ Clients SHOULD verify that the response body matches the requested digest.
 
 >If the blob is not found in the repository, the response code MUST be `404 Not Found`.
 
+##### Range requests
+
 > A registry SHOULD support the `Range` request header in accordance with [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#name-range-requests).
 
 #### Checking if content exists in the registry
@@ -216,6 +242,23 @@ In order to verify that a repository contains a given manifest or blob, make a `
 >`/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup> (for manifests), or
 
 > `/v2/<name>/blobs/<digest>` <sup>[end-2](#endpoints)</sup> (for blobs).
+
+| Request | Description |
+| -------- | ------- |
+| Purpose | Verify that a repository contains a given manifest |
+| `HTTP Method` | HEAD |
+| `URL path` | `/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup> (for manifests) |
+| `name` | The repository's namespace |
+| `reference` | The manifest reference |
+
+| Request | Description |
+| -------- | ------- |
+| Purpose | Verify that a repository contains a given blob |
+| `HTTP Method` | HEAD |
+| `URL path` | `/v2/<name>/blobs/<reference>` <sup>[end-2](#endpoints)</sup> (for blobs) |
+| `name` | The repository's namespace |
+| `digest` | The digest reference |
+
 
 ##### Existing Blob or Manifest Response
 
