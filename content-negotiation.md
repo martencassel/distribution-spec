@@ -5,7 +5,7 @@ TODO - Please see
 
 | `Accept`                                                                    | Multi?             | Result (type)           | Notes                                                                                        |
 |:----------------------------------------------------------------------------|:-------------------|:------------------------|:---------------------------------------------------------------------------------------------|
-| `<not present>`                                                             | :white_check_mark: | `manifest.v1+prettyjws` | `v1`, `linux/amd64`, for backward compatibility with old, non-v2 clients                     |
+| `<not present>`                                                             | :white_check_mark: | `manifest.v1+prettyjws` | `v1`, `linux/amd64`, for backward compatibility with old, non-v2 clients                     |>
 | `*/*`                                                                       | :white_check_mark: | `manifest.v1+prettyjws` | `v1`, `linux/amd64`, for backward compatibility with old, non-v2 clients (same as above)     |
 | `application/json`                                                          | :white_check_mark: | `manifest.v1+prettyjws` | `v1`, `linux/amd64`, for backward compatibility with old, non-v2 clients (same as above)     |
 | `manifest.v1+json`                                                          | :white_check_mark: | `manifest.v1+prettyjws` | `v1`, matching `Accept` header (`linux/amd64` for backward compatibility)                    |

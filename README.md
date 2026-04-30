@@ -143,23 +143,25 @@ Typically, the first step in pulling an object is to retrieve the manifest. Howe
 To pull a manifest, perform a `GET` request to a URL in the following form:
 `/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup>
 
-`<name>` refers to the namespace of the repository.
-`<reference>` MUST be either (a) the digest of the manifest or (b) a tag.
-The `<reference>` MUST NOT be in any other format.
-Throughout this document, `<name>` MUST match the following regular expression:
+##### `<name>`
 
-`[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*(\/[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*)*`
+> refers to the namespace of the repository.
 
-_Implementers note:_
+##### `<reference>`
+
+>  MUST be either (a) the digest of the manifest or (b) a tag. The `<reference>` MUST NOT be in any other format. Throughout this document, `<name>` MUST match the following regular expression: `[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*(\/[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*)*`
+
+>_Implementers note:_
 Many clients impose a limit of 255 characters on the length of the concatenation of the registry hostname (and optional port), `/`, and `<name>` value.
 If the registry name is `registry.example.org:5000`, those clients would be limited to a `<name>` of 229 characters (255 minus 25 for the registry hostname and port and minus 1 for a `/` separator).
 For compatibility with those clients, registries should avoid values of `<name>` that would cause this limit to be exceeded.
 
-Throughout this document, `<reference>` as a tag MUST be at most 128 characters in length and MUST match the following regular expression:
-
+>Throughout this document, `<reference>` as a tag MUST be at most 128 characters in length and MUST match the following regular expression:
 `[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}`
 
-The client SHOULD include an `Accept` header indicating which manifest content types it supports.
+##### `<accept>`
+
+>The client SHOULD include an `Accept` header indicating which manifest content types it supports.
 In a successful response, the `Content-Type` header will indicate the type of the returned manifest.
 The registry SHOULD NOT include parameters on the `Content-Type` header.
 The client SHOULD ignore parameters on the `Content-Type` header.
@@ -167,59 +169,80 @@ The `Content-Type` header SHOULD match what the client [pushed as the manifest's
 If the manifest has a `mediaType` field, clients SHOULD reject unless the `mediaType` field's value matches the type specified by the `Content-Type` header.
 For more information on the use of `Accept` headers and content negotiation, please see [Content Negotiation](./content-negotiation.md) and [RFC7231](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1).
 
+##### Existing Manifest Response
+
 A GET request to an existing manifest URL MUST provide the expected manifest, with a response code that MUST be `200 OK`.
 A successful response MUST contain the digest of the uploaded blob in the header `Docker-Content-Digest`.
 
-The `Docker-Content-Digest` header, if present on the response, returns the digest of the uploaded blob which MAY differ from the provided digest.
+#### `Docker-Content-Digest` header
+
+>The `Docker-Content-Digest` header, if present on the response, returns the digest of the uploaded blob which MAY differ from the provided digest.
 If the digest does differ, it MAY be the case that the hashing algorithms used do not match.
 See [Content Digests](https://github.com/opencontainers/image-spec/blob/v1.0.1/descriptor.md#digests) <sup>[apdx-3](#appendix)</sup> for information on how to detect the hashing algorithm in use.
 Most clients MAY ignore the value, but if it is used, the client MUST verify the value matches the returned manifest.
 If the `<reference>` part of a manifest request is a digest, clients SHOULD verify the returned manifest matches this digest.
 
-If the manifest is not found in the repository, the response code MUST be `404 Not Found`.
+##### Non-Existing Manifest Response
+
+>If the manifest is not found in the repository, the response code MUST be `404 Not Found`.
 
 #### Pulling blobs
 
 To pull a blob, perform a `GET` request to a URL in the following form:
 `/v2/<name>/blobs/<digest>` <sup>[end-2](#endpoints)</sup>
 
-`<name>` is the namespace of the repository, and `<digest>` is the blob's digest.
+##### `<name>`
 
-A GET request to an existing blob URL MUST provide the expected blob, with a response code that MUST be `200 OK`.
+>`<name>` is the namespace of the repository, and `<digest>` is the blob's digest.
+
+##### Existing Blob Response
+
+>A GET request to an existing blob URL MUST provide the expected blob, with a response code that MUST be `200 OK`.
 A successful response MUST contain the digest of the uploaded blob in the header `Docker-Content-Digest`.
 If present, the value of this header MUST be a digest matching that of the response body.
 Most clients MAY ignore the value, but if it is used, the client MUST verify the value matches the returned response body.
 Clients SHOULD verify that the response body matches the requested digest.
 
-If the blob is not found in the repository, the response code MUST be `404 Not Found`.
+##### Non-Existing Blob Response
 
-A registry SHOULD support the `Range` request header in accordance with [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#name-range-requests).
+>If the blob is not found in the repository, the response code MUST be `404 Not Found`.
+
+> A registry SHOULD support the `Range` request header in accordance with [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#name-range-requests).
 
 #### Checking if content exists in the registry
 
 In order to verify that a repository contains a given manifest or blob, make a `HEAD` request to a URL in the following form:
 
-`/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup> (for manifests), or
+>`/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup> (for manifests), or
 
-`/v2/<name>/blobs/<digest>` <sup>[end-2](#endpoints)</sup> (for blobs).
+> `/v2/<name>/blobs/<digest>` <sup>[end-2](#endpoints)</sup> (for blobs).
+
+##### Existing Blob or Manifest Response
 
 A HEAD request to an existing blob or manifest URL MUST return `200 OK`.
 A successful response MUST contain the digest of the uploaded blob or manifest in the header `Docker-Content-Digest`.
 A successful response MUST contain the size in bytes of the uploaded blob or manifest in the header `Content-Length`.
 
-_Implementers note:_
-Clients may encounter registries implementing earlier spec versions which did not require the `Docker-Content-Digest` header.
-In such cases, the clients can reasonably assume the digest algorithm used is sha256.
+>_Implementers note:_
+>Clients may encounter registries implementing earlier spec versions which did not require the `Docker-Content-Digest` header.
+>In such cases, the clients can reasonably assume the digest algorithm used is sha256.
 
-If the blob or manifest is not found in the repository, the response code MUST be `404 Not Found`.
+##### Non-Existing Existing Blob or Manifest Response
+
+>If the blob or manifest is not found in the repository, the response code MUST be `404 Not Found`.
 
 ### Push
 
 Pushing an object typically works in the opposite order as a pull: the blobs making up the object are uploaded first, and the manifest last.
 A useful diagram is provided [here](https://github.com/google/go-containerregistry/tree/d7f8d06c87ed209507dd5f2d723267fe35b38a9f/pkg/v1/remote#anatomy-of-an-image-upload).
 
-A registry MUST initially accept an otherwise valid manifest with a `subject` field that references a manifest that does not exist in the repository, allowing clients to push a manifest and referrers to that manifest in either order.
-A registry MAY reject a manifest uploaded to the manifest endpoint with descriptors in other fields that reference a manifest or blob that does not exist in the registry.
+##### A Subject field of a manifest can refer to a not-yet uploaded manifest
+
+>A registry MUST initially accept an otherwise valid manifest with a `subject` field that references a manifest that does not exist in the repository, allowing clients to push a manifest and referrers to that manifest in either order.
+
+##### Rejecting manifest when other fields has references non-existant manifest or blob references
+
+>A registry MAY reject a manifest uploaded to the manifest endpoint with descriptors in other fields that reference a manifest or blob that does not exist in the registry.
 When a manifest is rejected for this reason, it MUST result in one or more `MANIFEST_BLOB_UNKNOWN` errors <sup>[code-1](#error-codes)</sup>.
 
 #### Pushing blobs
