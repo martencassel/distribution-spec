@@ -157,29 +157,34 @@ To pull a manifest, perform a `GET` request to a URL in the following form:
 
 ##### `<reference>`
 
->  MUST be either (a) the digest of the manifest or (b) a tag. The `<reference>` MUST NOT be in any other format. Throughout this document, `<name>` MUST match the following regular expression: `[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*(\/[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*)*`
+>*  MUST be either (a) the digest of the manifest or (b) a tag.
+>* The `<reference>` MUST NOT be in any other format.
+>* Throughout this document, `<name>` MUST match the following regular expression:
+>* `[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*(\/[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*)*`
 
 >_Implementers note:_
-Many clients impose a limit of 255 characters on the length of the concatenation of the registry hostname (and optional port), `/`, and `<name>` value.
-If the registry name is `registry.example.org:5000`, those clients would be limited to a `<name>` of 229 characters (255 minus 25 for the registry hostname and port and minus 1 for a `/` separator).
+>* Many clients impose a limit of 255 characters on the length of the concatenation of the registry hostname (and optional port), `/`, and `<name>` value.
+>* If the registry name is `registry.example.org:5000`, those clients would be limited to a `<name>` of 229 characters (255 minus 25 for the registry hostname and port and minus 1 for a `/` separator).
 For compatibility with those clients, registries should avoid values of `<name>` that would cause this limit to be exceeded.
-
->Throughout this document, `<reference>` as a tag MUST be at most 128 characters in length and MUST match the following regular expression:
+>* Throughout this document, `<reference>` as a tag MUST be at most 128 characters in length and MUST match the following regular expression:
 `[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}`
 
 ##### `<accept>`
 
 >The client SHOULD include an `Accept` header indicating which manifest content types it supports.
-In a successful response, the `Content-Type` header will indicate the type of the returned manifest.
-The registry SHOULD NOT include parameters on the `Content-Type` header.
-The client SHOULD ignore parameters on the `Content-Type` header.
-The `Content-Type` header SHOULD match what the client [pushed as the manifest's `Content-Type`](#pushing-manifests).
-If the manifest has a `mediaType` field, clients SHOULD reject unless the `mediaType` field's value matches the type specified by the `Content-Type` header.
-For more information on the use of `Accept` headers and content negotiation, please see [Content Negotiation](./content-negotiation.md) and [RFC7231](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1).
+>* In a successful response, the `Content-Type` header will indicate the type of the returned manifest.
+>* The registry SHOULD NOT include parameters on the `Content-Type` header.
+>* The client SHOULD ignore parameters on the `Content-Type` header.
+>* The `Content-Type` header SHOULD match what the client [pushed as the manifest's `Content-Type`](#pushing-manifests).
+>* If the manifest has a `mediaType` field, clients SHOULD reject unless the `mediaType` field's value matches the type specified by the `Content-Type` header.
+>* For more information on the use of `Accept` headers and content negotiation, please see [Content Negotiation](./content-negotiation.md) and [RFC7231](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1).
 
 ##### Existing Manifest Response
 
 A GET request to an existing manifest URL MUST provide the expected manifest, with a response code that MUST be `200 OK`.
+
+##### Successful response
+
 A successful response MUST contain the digest of the uploaded blob in the header `Docker-Content-Digest`.
 
 
@@ -191,11 +196,11 @@ A successful response MUST contain the digest of the uploaded blob in the header
 
 #### `Docker-Content-Digest` header
 
->The `Docker-Content-Digest` header, if present on the response, returns the digest of the uploaded blob which MAY differ from the provided digest.
-If the digest does differ, it MAY be the case that the hashing algorithms used do not match.
-See [Content Digests](https://github.com/opencontainers/image-spec/blob/v1.0.1/descriptor.md#digests) <sup>[apdx-3](#appendix)</sup> for information on how to detect the hashing algorithm in use.
-Most clients MAY ignore the value, but if it is used, the client MUST verify the value matches the returned manifest.
-If the `<reference>` part of a manifest request is a digest, clients SHOULD verify the returned manifest matches this digest.
+>* The `Docker-Content-Digest` header, if present on the response, returns the digest of the uploaded blob which MAY differ from the provided digest.
+>* If the digest does differ, it MAY be the case that the hashing algorithms used do not match.
+>* See [Content Digests](https://github.com/opencontainers/image-spec/blob/v1.0.1/descriptor.md#digests) <sup>[apdx-3](#appendix)</sup> for information on how to detect the hashing algorithm in use.
+>* Most clients MAY ignore the value, but if it is used, the client MUST verify the value matches the returned manifest.
+>* If the `<reference>` part of a manifest request is a digest, clients SHOULD verify the returned manifest matches this digest.
 
 ##### Non-Existing Manifest Response
 
@@ -222,10 +227,10 @@ To pull a blob, perform a `GET` request to a URL in the following form:
 ##### Existing Blob Response
 
 >A GET request to an existing blob URL MUST provide the expected blob, with a response code that MUST be `200 OK`.
-A successful response MUST contain the digest of the uploaded blob in the header `Docker-Content-Digest`.
-If present, the value of this header MUST be a digest matching that of the response body.
-Most clients MAY ignore the value, but if it is used, the client MUST verify the value matches the returned response body.
-Clients SHOULD verify that the response body matches the requested digest.
+>* A successful response MUST contain the digest of the uploaded blob in the header `Docker-Content-Digest`.
+>* If present, the value of this header MUST be a digest matching that of the response body.
+>* Most clients MAY ignore the value, but if it is used, the client MUST verify the value matches the returned response body.
+>* Clients SHOULD verify that the response body matches the requested digest.
 
 ##### Non-Existing Blob Response
 
@@ -238,10 +243,6 @@ Clients SHOULD verify that the response body matches the requested digest.
 #### Checking if content exists in the registry
 
 In order to verify that a repository contains a given manifest or blob, make a `HEAD` request to a URL in the following form:
-
->`/v2/<name>/manifests/<reference>` <sup>[end-3](#endpoints)</sup> (for manifests), or
-
-> `/v2/<name>/blobs/<digest>` <sup>[end-2](#endpoints)</sup> (for blobs).
 
 | Request | Description |
 | -------- | ------- |
@@ -262,13 +263,13 @@ In order to verify that a repository contains a given manifest or blob, make a `
 
 ##### Existing Blob or Manifest Response
 
-A HEAD request to an existing blob or manifest URL MUST return `200 OK`.
-A successful response MUST contain the digest of the uploaded blob or manifest in the header `Docker-Content-Digest`.
-A successful response MUST contain the size in bytes of the uploaded blob or manifest in the header `Content-Length`.
+* A HEAD request to an existing blob or manifest URL MUST return `200 OK`.
+* A successful response MUST contain the digest of the uploaded blob or manifest in the header `Docker-Content-Digest`.
+* A successful response MUST contain the size in bytes of the uploaded blob or manifest in the header `Content-Length`.
 
 >_Implementers note:_
->Clients may encounter registries implementing earlier spec versions which did not require the `Docker-Content-Digest` header.
->In such cases, the clients can reasonably assume the digest algorithm used is sha256.
+>* Clients may encounter registries implementing earlier spec versions which did not require the `Docker-Content-Digest` header.
+>* In such cases, the clients can reasonably assume the digest algorithm used is sha256.
 
 ##### Non-Existing Existing Blob or Manifest Response
 
@@ -464,6 +465,8 @@ The `<length>` is the content-length, in bytes, of the current chunk.
 If the registry provides an `OCI-Chunk-Min-Length` header in the `POST` response, the size of each chunk, except for the final chunk, SHOULD be greater or equal to that value.
 The final chunk MAY have any length.
 
+##### Successful response
+
 The response for each successful chunk upload MUST be `202 Accepted`, and MUST have the following headers:
 
 ```
@@ -497,6 +500,8 @@ OPTIONAL: <final chunk byte stream>
 ```
 
 The closing `PUT` request MUST include the `<digest>` of the whole blob (not the final chunk) as a query parameter.
+
+##### Successful response
 
 The response to a successful closing of the session MUST be `201 Created`, and MUST contain the following header:
 ```
@@ -535,6 +540,8 @@ Content-Length: 0
 
 The `<location>` refers to the URL obtained from the preceding `POST` or `PATCH` request.
 
+##### Successful response
+
 If successful, the response SHOULD be a `204 No Content` response code.
 
 Clients SHOULD send this request when aborting a blob upload, releasing server resources.
@@ -551,6 +558,8 @@ request in the following format:
 In this case, `<name>` is the namespace to which the blob will be mounted.
 `<digest>` is the digest of the blob to mount, and `<other_name>` is the namespace from which the blob should be mounted.
 This step is usually taken in place of the previously-described `POST` request to `/v2/<name>/blobs/uploads/` <sup>[end-4a](#endpoints)</sup> (which is used to initiate an upload session).
+
+##### Successful response
 
 The response to a successful mount MUST be `201 Created`, and MUST contain the following header:
 ```
@@ -598,6 +607,9 @@ The uploaded manifest MUST reference any blobs that make up the object.
 However, the list of blobs MAY be empty.
 
 The registry MUST store the manifest in the exact byte representation provided by the client.
+
+##### Successful response
+
 Upon a successful upload, the registry MUST return response code `201 Created`, and MUST have the following header:
 
 ```
@@ -645,7 +657,7 @@ The registry MUST respond with the response header `OCI-Subject: <subject digest
 + The registry implementation support the [referrers API](#listing-referrers)
 + To indicate to the client that the registry processed the request's `subject`.
 
-#### When `OCI-Subject` header is not set
+#### When a manifest is missing the `subject` field and`OCI-Subject` header is not set
 
 When pushing a manifest with the `subject` field and the `OCI-Subject` header was not set, the client MUST:
 
@@ -668,8 +680,12 @@ To fetch the list of tags, perform a `GET` request to a path in the following fo
 
 `<name>` is the namespace of the repository.
 
+##### Successful response
 
 Assuming a repository is found, this request MUST return a `200 OK` response code.
+
+##### No Tags Response
+
 The list of tags MAY be empty if there are no tags on the repository.
 If the list is not empty, the tags MUST be in lexical (i.e. case-insensitive alphanumeric order) or "ASCIIbetical" ([Go's `sort.Strings`](https://pkg.go.dev/sort#Strings)) order.
 
