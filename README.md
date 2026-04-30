@@ -247,11 +247,12 @@ When a manifest is rejected for this reason, it MUST result in one or more `MANI
 
 #### Pushing blobs
 
-There are two ways to push blobs: chunked or monolithic.
+There are two ways to push blobs: monolithic or chunked.
 
-#### Pushing a blob monolithically
+#### Monolithic Push
 
-There are two ways to push a blob monolithically:
+This method have two variants:
+
 1. A `POST` request followed by a `PUT` request
 2. A single `POST` request
 
@@ -268,6 +269,9 @@ To obtain a session ID, perform a `POST` request to a URL in the following forma
 `/v2/<name>/blobs/uploads/` <sup>[end-4a](#endpoints)</sup>
 
 Here, `<name>` refers to the namespace of the repository.
+
+##### Success response
+
 Upon success, the response MUST have a code of `202 Accepted`, and MUST include the following header:
 
 ```
@@ -494,10 +498,15 @@ This indicates that the upload session has begun and that the client MAY proceed
 
 To push a manifest, perform a `PUT` request to a path in the following format, and with the following headers and body: `/v2/<name>/manifests/<reference>` <sup>[end-7](#endpoints)</sup>
 
-Clients SHOULD set the `Content-Type` header to the type of the manifest being pushed.
-The client SHOULD NOT include parameters on the `Content-Type` header (see [RFC7231](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1)).
-The registry SHOULD ignore parameters on the `Content-Type` header.
-All manifests SHOULD include a `mediaType` field declaring the type of the manifest being pushed.
+#### `Content-Type` header
+
++ Clients SHOULD set the `Content-Type` header to the type of the manifest being pushed.
++ The client SHOULD NOT include parameters on the `Content-Type` header (see [RFC7231](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1)).
++ The registry SHOULD ignore parameters on the `Content-Type` header.
++ All manifests SHOULD include a `mediaType` field declaring the type of the manifest being pushed.
+
+
+
 If a manifest includes a `mediaType` field, clients MUST set the `Content-Type` header to the value specified by the `mediaType` field.
 
 ```
@@ -556,7 +565,15 @@ Client and registry implementations SHOULD expect to be able to support manifest
 
 ##### Pushing Manifests with Subject
 
-When processing a request for an image manifest with the `subject` field, a registry implementation that supports the [referrers API](#listing-referrers) MUST respond with the response header `OCI-Subject: <subject digest>` to indicate to the client that the registry processed the request's `subject`.
+#### When `OCI-Subject` is set
+
+The registry MUST respond with the response header `OCI-Subject: <subject digest>` in the following cases:
+
++ When processing a request for an image manifest with the subject field
++ The registry implementation support the [referrers API](#listing-referrers)
++ To indicate to the client that the registry processed the request's `subject`.
+
+#### When `OCI-Subject` header is not set
 
 When pushing a manifest with the `subject` field and the `OCI-Subject` header was not set, the client MUST:
 
@@ -578,6 +595,8 @@ When pushing a manifest with the `subject` field and the `OCI-Subject` header wa
 To fetch the list of tags, perform a `GET` request to a path in the following format: `/v2/<name>/tags/list` <sup>[end-8a](#endpoints)</sup>
 
 `<name>` is the namespace of the repository.
+
+
 Assuming a repository is found, this request MUST return a `200 OK` response code.
 The list of tags MAY be empty if there are no tags on the repository.
 If the list is not empty, the tags MUST be in lexical (i.e. case-insensitive alphanumeric order) or "ASCIIbetical" ([Go's `sort.Strings`](https://pkg.go.dev/sort#Strings)) order.
@@ -629,22 +648,41 @@ When available, clients should prefer the `Link` header over using the `last` pa
 *Note: this feature was added in distibution-spec 1.1.
 Registries should see [Enabling the Referrers API](#enabling-the-referrers-api) before enabling this.*
 
-To fetch the list of referrers, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<digest>` <sup>[end-12a](#endpoints)</sup>.
+##### Fetch the list of referrers
 
-`<name>` is the namespace of the repository, and `<digest>` is the digest of the manifest specified in the `subject` field.
+To fetch the list of referrers:
 
-Assuming a repository is found, this request MUST return a `200 OK` response code.
-If the registry supports the referrers API, the registry MUST NOT return a `404 Not Found` to a referrers API requests.
-If the request is invalid, such as a `<digest>` with an invalid syntax, a `400 Bad Request` MUST be returned.
+>perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<digest>` <sup>[end-12a](#endpoints)</sup>.
+
+> `<name>` is the namespace of the repository.
+
+> `<digest>` is the digest of the manifest specified in the `subject` field.
+
+##### When the repository was found
+
+> The request MUST return a `200 OK` response code.
+
+> If the registry supports the referrers API, the registry MUST NOT return a `404 Not Found` to a referrers API requests.
+
+##### An invalid request
+
+> If the request is invalid, such as a `<digest>` with an invalid syntax, a `400 Bad Request` MUST be returned.
+
+##### Successful response, returns JSON body
 
 Upon success, the response MUST be a JSON body with an image index containing a list of descriptors.
-The `Content-Type` header MUST be set to `application/vnd.oci.image.index.v1+json`.
-Each descriptor is of an image manifest or index in the same `<name>` namespace with a `subject` field that specifies the value of `<digest>`.
-The descriptors MUST include an `artifactType` field that is set to the value of the `artifactType` in the image manifest or index, if present.
+
+>The `Content-Type` header MUST be set to `application/vnd.oci.image.index.v1+json`.
+
+>Each descriptor is of an image manifest or index in the same `<name>` namespace with a `subject` field that specifies the value of `<digest>`.
+
+>The descriptors MUST include an `artifactType` field that is set to the value of the `artifactType` in the image manifest or index, if present.
 If the `artifactType` is empty or missing in the image manifest, the value of `artifactType` MUST be set to the config descriptor `mediaType` value.
 If the `artifactType` is empty or missing in an index, the `artifactType` MUST be omitted.
 The descriptors MUST include annotations from the image manifest or index.
 If a query results in no matching referrers, an empty manifest list MUST be returned.
+
+## Image Index Response Example
 
 ```json
 {
@@ -687,9 +725,20 @@ A `Link` header MUST be included in the response when the descriptor list cannot
 Each response is an image index with different descriptors in the `manifests` field.
 The `Link` header MUST be set according to [RFC5988](https://www.rfc-editor.org/rfc/rfc5988.html) with the Relation Type `rel="next"`.
 
+##### Registry filtering support on `artifactType`.
+
 The registry SHOULD support filtering on `artifactType`.
+
+##### Request URL format
+
 To fetch the list of referrers with a filter, perform a `GET` request to a path in the following format: `/v2/<name>/referrers/<digest>?artifactType=<artifactType>` <sup>[end-12b](#endpoints)</sup>.
+
+##### Response Header
+
 If filtering is requested and applied, the response MUST include a header `OCI-Filters-Applied: artifactType` denoting that an `artifactType` filter was applied.
+
+##### Request URL format
+
 If multiple filters are applied, the header MUST contain a comma separated list of applied filters.
 
 Example request with filtering:
@@ -734,7 +783,11 @@ Similarly, a registry MAY implement tag deletion, while others MAY allow deletio
 
 To delete a tag, perform a `DELETE` request to a path in the following format: `/v2/<name>/manifests/<tag>` <sup>[end-9](#endpoints)</sup>
 
-`<name>` is the namespace of the repository, and `<tag>` is the name of the tag to be deleted.
+> `<name>` is the namespace of the repository
+> `<tag>` is the name of the tag to be deleted.
+
+##### Success response
+
 Upon success, the registry MUST respond with a `202 Accepted` code.
 If tag deletion is disabled, the registry MUST respond with either a `400 Bad Request` or a `405 Method Not Allowed`.
 
@@ -744,12 +797,28 @@ Once deleted, a `GET` to `/v2/<name>/manifests/<tag>` will return a 404.
 
 To delete a manifest, perform a `DELETE` request to a path in the following format: `/v2/<name>/manifests/<digest>` <sup>[end-9](#endpoints)</sup>
 
-`<name>` is the namespace of the repository, and `<digest>` is the digest of the manifest to be deleted.
+
+> `<name>` is the namespace of the repository
+
+> `<digest>` is the digest of the manifest to be deleted.
+
+##### Success response
+
 Upon success, the registry MUST respond with a `202 Accepted` code.
+
+##### Not Found Response
+
 If the repository does not exist, the response MUST return `404 Not Found`.
+
+##### Disabled Deletion Response
+
 If manifest deletion is disabled, the registry MUST respond with either a `400 Bad Request` or a `405 Method Not Allowed`.
 
+##### Tags pointing to the deleted digest
+
 Once deleted, a `GET` to `/v2/<name>/manifests/<digest>` and any tag pointing to that digest will return a 404.
+
+##### Deleting an image manifest that contains a `subject field`
 
 When deleting an image manifest that contains a `subject` field, and the [referrers API](#listing-referrers) returns a 404, clients SHOULD:
 
@@ -762,11 +831,24 @@ When deleting a manifest that has an associated [referrers tag schema](#referrer
 
 #### Deleting Blobs
 
+##### Delete request
+
 To delete a blob, perform a `DELETE` request to a path in the following format: `/v2/<name>/blobs/<digest>` <sup>[end-10](#endpoints)</sup>
 
-`<name>` is the namespace of the repository, and `<digest>` is the digest of the blob to be deleted.
+> `<name>` is the namespace of the repository
+
+>  `<digest>` is the digest of the blob to be deleted.
+
+##### Success response
+
 Upon success, the registry MUST respond with code `202 Accepted`.
+
+##### Blob not found response
+
 If the blob is not found, a `404 Not Found` code MUST be returned.
+
+##### Disabled blob deletion
+
 If blob deletion is disabled, the registry MUST respond with either a `400 Bad Request` or a `405 Method Not Allowed`.
 
 ## Registry Proxying
