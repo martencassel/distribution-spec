@@ -253,18 +253,20 @@ There are two ways to push blobs: monolithic or chunked.
 
 This method have two variants:
 
-1. A `POST` request followed by a `PUT` request
+1. POST then PUT
 2. A single `POST` request
 
 ---
 
 ##### POST then PUT
 
-To push a blob monolithically by using a POST request followed by a PUT request, there are two steps:
+This method has two steps:
 1. Obtain a session id (upload URL)
 2. Upload the blob to said URL
 
-To obtain a session ID, perform a `POST` request to a URL in the following format:
+##### Obtaining a session ID
+
+Perform a `POST` request to a URL in the following format:
 
 `/v2/<name>/blobs/uploads/` <sup>[end-4a](#endpoints)</sup>
 
@@ -278,16 +280,24 @@ Upon success, the response MUST have a code of `202 Accepted`, and MUST include 
 Location: <location>
 ```
 
-The `<location>` MUST contain a UUID representing a unique session ID for the upload to follow.
-The `<location>` does not necessarily need to be provided by the registry itself.
+##### `<Location>`
+
+> The `<location>` MUST contain a UUID representing a unique session ID for the upload to follow.
+
+> The `<location>` does not necessarily need to be provided by the registry itself.
 In fact, offloading to another server can be a [better strategy](https://www.backblaze.com/blog/design-thinking-b2-apis-the-hidden-costs-of-s3-compatibility/).
 
 Optionally, the location MAY be absolute (containing the protocol and/or hostname), or it MAY be relative (containing just the URL path).
 For more information, see [RFC 7231](https://tools.ietf.org/html/rfc7231#section-7.1.2).
 
-Once the `<location>` has been obtained, perform the upload proper by making a `PUT` request to the following URL path, and with the following headers and body:
+##### Upload the blob to the location URL
 
-`<location>?digest=<digest>` <sup>[end-6](#endpoints)</sup>
+Perform the upload proper by making a `PUT` request
+to the following URL path, and with the following headers and body:
+
+
+>URL Path: `<location>?digest=<digest>` <sup>[end-6](#endpoints)</sup>
+
 ```
 Content-Length: <length>
 Content-Type: application/octet-stream
@@ -296,13 +306,17 @@ Content-Type: application/octet-stream
 <upload byte stream>
 ```
 
+##### `<location>`
+
 The `<location>` MAY contain critical query parameters.
 Additionally, it SHOULD match exactly the `<location>` obtained from the `POST` request.
 It SHOULD NOT be assembled manually by clients except where absolute/relative conversion is necessary.
 
 Here, `<digest>` is the digest of the blob being uploaded, and `<length>` is its size in bytes.
 
-Upon successful completion of the request, the response MUST have code `201 Created` and MUST have the following header:
+##### When the request was successful
+
+>Upon successful completion of the request, the response MUST have code `201 Created` and MUST have the following header:
 
 ```
 Location: <blob-location>
@@ -318,21 +332,36 @@ Registries MAY support pushing blobs using a single POST request.
 
 To push a blob monolithically by using a single POST request, perform a `POST` request to a URL in the following form, and with the following headers and body:
 
-`/v2/<name>/blobs/uploads/?digest=<digest>` <sup>[end-4b](#endpoints)</sup>
-```
-Content-Length: <length>
-Content-Type: application/octet-stream
-```
-```
-<upload byte stream>
-```
 
-Here, `<name>` is the repository's namespace, `<digest>` is the blob's digest, and `<length>` is the size (in bytes) of the blob.
+| Request | Description |
+| -------- | ------- |
+| `HTTP Method` | POST |
+| `URL path` | `/v2/<name>/blobs/uploads/?digest=<digest>` <sup>[end-4b](#endpoints)</sup> |
+| `name` | The repository's namespace |
+| `digest` | The blob's digest |
+
+##### Response Headers
+
+| Response Header | Description |
+| -------- | ------- |
+| `Content-Length` | `<length>` |
+| `Content-Type` | `application/octet-stream` |
+| `Body` | `<upload byte stream>` |
+
+##### Request Parameter Headers
+
+| Parameter | Description |
+| -------- | ------- |
+| `<name>` | The repository's namespace |
+| `<digest>` | The blob's digest |
+| `<length>` | The size (in bytes) of the blob |
 
 The `Content-Length` header MUST match the blob's actual content length.
 Likewise, the `<digest>` MUST match the blob's digest.
 
 Registries that do not support single request monolithic uploads SHOULD return a `202 Accepted` status code and `Location` header and clients SHOULD proceed with a subsequent PUT request, as described by the [POST then PUT upload method](#post-then-put).
+
+##### Success response
 
 Successful completion of the request MUST return a `201 Created` and MUST include the following header:
 
