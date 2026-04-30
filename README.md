@@ -292,15 +292,16 @@ When a manifest is rejected for this reason, it MUST result in one or more `MANI
 #### Pushing blobs
 
 There are four known ways to push blobs.
-* streamed upload mode: is in the conformance test but no in this text.
-* monolithic POST, single PATCH,PUT: not in the spec
+> streamed upload mode: is in the conformance test but no in this text.
 
-| Push Methods | Description | Properties | |
+> monolithic POST, single PATCH,PUT: not in the spec
+
+| Push Methods | Description | Properties | Is no the specification? |
 | -------- | ------- |---------------|-------------------
-| monolithic | (POST + PUT) or POST | | |
-| chunked | POST + PATCH (per chunk) + PUT | Uses **non-standard** `Content-Range` semantics (relative to typical HTTP expectations).  | |
-| streamed upload mode | PATCH + finalizing PUT | Doesnt use Content-Range header |
-| monolithic POST, single PATCH,PUT |POST to start + **single monolithic `PATCH`** + `PUT` to finalize | most implementations prefer |
+| monolithic | (POST + PUT) or POST | | Yes |
+| chunked | POST + PATCH (per chunk) + PUT | Uses **non-standard** `Content-Range` semantics (relative to typical HTTP expectations).  | Yes |
+| streamed upload mode | PATCH + finalizing PUT | Doesnt use Content-Range header | No, only in conformance test |
+| monolithic POST, single PATCH,PUT |POST to start + **single monolithic `PATCH`** + `PUT` to finalize | most implementations prefer | No |
 
 #### Monolithic Push
 
@@ -1107,6 +1108,33 @@ Warning: 299 - "This image is deprecated and will be removed soon."
 If a client receives `Warning` response headers, it SHOULD report the warnings to the user in an unobtrusive way.
 Clients SHOULD deduplicate warnings from multiple associated responses.
 In accordance with RFC 7234, clients MUST NOT take any automated action based on the presence or contents of warnings, only report them to the user.
+
+## Blob Push with podman
+
+Podman uses the blob upload method of ***monolithic POST, single PATCH,PUT***.
+
+We only show the first layer below and omit the second one.
+
+```bash
+podman image push 172.21.22.152:8080/oci-local/alpine:latest --tls-verify=false
+```
+
+![alt text](./img/podman-push-alpine.png "Title")
+
+![alt text](./img/blob-head-not-found.png "Title")
+
+![alt text](./img/blob-upload-new.png "Title")
+
+![alt text](./img/blob-patch-req.png "Title")
+
+![alt text](./img/blob-patch-res.png "Title")
+
+![alt text](./img/put-req.png "Title")
+
+![alt text](./img/put-manifest-1.png "Title")
+
+![alt text](./img/put-manifest-response.png "Title")
+
 
 ## Appendix
 
